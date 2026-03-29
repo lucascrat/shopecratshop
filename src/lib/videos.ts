@@ -11,8 +11,8 @@ export async function getVideos(page: number = 0, userId?: string): Promise<{ vi
             id: v.id,
             url: v.video_url,
             merchant: {
-                username: v.store?.profiles?.username || "loja",
-                storeName: v.store?.name || v.store?.profiles?.username || "Loja",
+                username: v.store?.username || v.store?.profiles?.username || "loja",
+                storeName: v.store?.name || v.store?.username || "Loja",
                 avatar: v.store?.logo_url || v.store?.profiles?.avatar_url || "",
             },
             description: v.description,

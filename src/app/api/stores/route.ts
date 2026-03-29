@@ -21,42 +21,51 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ store: rows[0] });
         }
 
-        // Get store by username (for store profile page)
+        // Get store by username (store's own username OR profile username fallback)
         if (username) {
-            const { rows: profileRows } = await query(
-                "SELECT id FROM profiles WHERE username = $1",
+            // Try store's own username first
+            let storeRows = (await query(
+                `SELECT s.*, p.username as profile_username
+                 FROM stores s JOIN profiles p ON s.merchant_id = p.id
+                 WHERE s.username = $1`,
                 [username]
-            );
-            if (profileRows.length === 0) {
-                return NextResponse.json({ error: "Perfil não encontrado" }, { status: 404 });
+            )).rows;
+
+            // Fallback: look up by profile username
+            if (storeRows.length === 0) {
+                const profileRows = (await query(
+                    "SELECT id, username FROM profiles WHERE username = $1",
+                    [username]
+                )).rows;
+                if (profileRows.length > 0) {
+                    storeRows = (await query(
+                        "SELECT * FROM stores WHERE merchant_id = $1",
+                        [profileRows[0].id]
+                    )).rows;
+                }
             }
 
-            const { rows: storeRows } = await query(
-                "SELECT * FROM stores WHERE merchant_id = $1",
-                [profileRows[0].id]
-            );
             if (storeRows.length === 0) {
                 return NextResponse.json({ error: "Loja não encontrada" }, { status: 404 });
             }
 
-            // Also get products and videos
             const store = storeRows[0];
+            const storeUsername = store.username || username;
+
             const [productsRes, videosRes] = await Promise.all([
                 query(
-                    `SELECT id, name, price, old_price, images, description, stock
-                     FROM products
-                     WHERE store_id = $1
-                     ORDER BY created_at DESC`,
+                    `SELECT id, name, price, old_price, images, description, stock,
+                            avg_rating, reviews_count
+                     FROM products WHERE store_id = $1 ORDER BY created_at DESC`,
                     [store.id]
                 ),
                 query("SELECT * FROM videos WHERE store_id = $1 ORDER BY created_at DESC", [store.id]),
             ]);
 
             return NextResponse.json({
-                store,
+                store: { ...store, username: storeUsername },
                 products: productsRes.rows,
                 videos: videosRes.rows,
-                profile: { username, ...profileRows[0] },
             });
         }
 

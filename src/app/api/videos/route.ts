@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
             videosQuery = `
                 SELECT v.id, v.store_id, v.product_id, v.video_url, v.description, v.created_at,
                        s.name as store_name, s.logo_url as store_logo,
+                       COALESCE(s.username, p.username) as store_username,
                        p.username as merchant_username, p.avatar_url as merchant_avatar,
                        pr.id as product_id, pr.name as product_name, pr.price as product_price,
                        pr.old_price as product_old_price, pr.images as product_images, pr.category as product_category
@@ -37,6 +38,7 @@ export async function GET(request: NextRequest) {
             videosQuery = `
                 SELECT v.id, v.store_id, v.product_id, v.video_url, v.description, v.created_at,
                        s.name as store_name, s.logo_url as store_logo,
+                       COALESCE(s.username, p.username) as store_username,
                        p.username as merchant_username, p.avatar_url as merchant_avatar,
                        pr.id as product_id, pr.name as product_name, pr.price as product_price,
                        pr.old_price as product_old_price, pr.images as product_images, pr.category as product_category
@@ -94,6 +96,7 @@ export async function GET(request: NextRequest) {
                 id: v.store_id,
                 name: v.store_name,
                 logo_url: v.store_logo,
+                username: v.store_username,
                 profiles: {
                     username: v.merchant_username,
                     avatar_url: v.merchant_avatar,
