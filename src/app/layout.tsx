@@ -32,8 +32,8 @@ export default function RootLayout({
     children: React.ReactNode;
 }>) {
     return (
-        <html lang="pt-BR" className="dark scroll-smooth">
-            <body className={`${plusJakartaSans.variable} font-sans antialiased flex flex-col items-center justify-center min-h-screen bg-slate-950`}>
+        <html lang="pt-BR" className="dark scroll-smooth" style={{ colorScheme: 'dark' }}>
+            <body className={`${plusJakartaSans.variable} font-sans antialiased flex flex-col items-center justify-center min-h-screen`} style={{ backgroundColor: '#221610', color: '#f1f5f9' }}>
                 <ErrorBoundary>
                     <AuthProvider>
                         <ToastProvider />

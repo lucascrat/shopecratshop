@@ -8,8 +8,8 @@ export default function ForgotPasswordPage() {
     const [sent, setSent] = useState(false);
 
     return (
-        <main className="min-h-screen w-full bg-background-light dark:bg-background-dark flex flex-col items-center justify-center p-4">
-            <div className="w-full max-w-[480px] bg-white dark:bg-[#1a242e] rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in duration-500">
+        <main className="min-h-screen w-full flex flex-col items-center justify-center p-4" style={{ backgroundColor: '#221610' }}>
+            <div className="w-full max-w-[480px] rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in duration-500" style={{ backgroundColor: '#1a242e' }}>
                 {/* Header */}
                 <div className="pt-8 px-8 flex items-center justify-between">
                     <Link href="/login" className="w-10 h-10 bg-white/5 rounded-2xl flex items-center justify-center text-white/40 hover:text-white transition-colors border border-white/5">
@@ -24,7 +24,7 @@ export default function ForgotPasswordPage() {
                 {!sent ? (
                     <div className="p-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
                         <div className="text-center mb-8">
-                            <h1 className="text-[#111418] dark:text-white text-3xl font-black tracking-tight mb-2 uppercase">Recuperar Senha</h1>
+                            <h1 className="text-white text-3xl font-black tracking-tight mb-2 uppercase">Recuperar Senha</h1>
                             <p className="text-white/30 text-xs font-bold uppercase tracking-widest leading-relaxed">Insira seu e-mail para receber as instruções de recuperação.</p>
                         </div>
 
@@ -36,7 +36,7 @@ export default function ForgotPasswordPage() {
                                     <input
                                         type="email"
                                         placeholder="exemplo@email.com"
-                                        className="w-full h-14 rounded-2xl bg-[#f0f2f4] dark:bg-[#101922] border border-white/5 focus:ring-2 focus:ring-primary/50 outline-none pl-12 pr-4 text-base transition-all"
+                                        className="w-full h-14 rounded-2xl bg-[#101922] border border-white/5 focus:ring-2 focus:ring-primary/50 outline-none pl-12 pr-4 text-base transition-all"
                                     />
                                 </div>
                             </div>

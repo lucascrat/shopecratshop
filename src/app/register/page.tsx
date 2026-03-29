@@ -54,8 +54,8 @@ export default function RegisterPage() {
 
     if (success) {
         return (
-            <main className="min-h-screen w-full bg-background-light dark:bg-background-dark flex flex-col items-center justify-center p-4">
-                <div className="w-full max-w-[480px] bg-white dark:bg-[#1a242e] rounded-[32px] shadow-2xl p-12 text-center animate-in zoom-in duration-500">
+            <main className="min-h-screen w-full flex flex-col items-center justify-center p-4" style={{ backgroundColor: '#221610' }}>
+                <div className="w-full max-w-[480px] rounded-[32px] shadow-2xl p-12 text-center animate-in zoom-in duration-500" style={{ backgroundColor: '#1a242e' }}>
                     <div className="w-20 h-20 bg-green-500/10 text-green-500 rounded-3xl flex items-center justify-center mx-auto mb-6">
                         <CheckCircle2 className="w-12 h-12" />
                     </div>
@@ -73,8 +73,8 @@ export default function RegisterPage() {
     }
 
     return (
-        <main className="min-h-screen w-full bg-background-light dark:bg-background-dark flex flex-col items-center justify-center p-4">
-            <div className="w-full max-w-[480px] bg-white dark:bg-[#1a242e] rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in duration-500">
+        <main className="min-h-screen w-full flex flex-col items-center justify-center p-4" style={{ backgroundColor: '#221610' }}>
+            <div className="w-full max-w-[480px] rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in duration-500" style={{ backgroundColor: '#1a242e' }}>
                 {/* Header */}
                 <div className="pt-8 px-8 flex items-center justify-between">
                     <Link href="/login" className="w-10 h-10 bg-white/5 rounded-2xl flex items-center justify-center text-white/40 hover:text-white transition-colors border border-white/5">
@@ -93,11 +93,11 @@ export default function RegisterPage() {
 
                 {/* Toggle */}
                 <div className="px-8 mb-6">
-                    <div className="flex bg-[#f0f2f4] dark:bg-[#101922] p-1.5 rounded-2xl border border-white/5">
+                    <div className="flex bg-[#101922] p-1.5 rounded-2xl border border-white/5">
                         <button
                             type="button"
                             onClick={() => setRegType("user")}
-                            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${regType === 'user' ? 'bg-white dark:bg-background-dark text-primary shadow-sm' : 'text-white/30 hover:text-white/50'}`}
+                            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${regType === 'user' ? 'bg-[#221610] text-primary shadow-sm' : 'text-white/30 hover:text-white/50'}`}
                         >
                             <User className="w-4 h-4" />
                             Cliente
@@ -105,7 +105,7 @@ export default function RegisterPage() {
                         <button
                             type="button"
                             onClick={() => setRegType("merchant")}
-                            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${regType === 'merchant' ? 'bg-white dark:bg-background-dark text-primary shadow-sm' : 'text-white/30 hover:text-white/50'}`}
+                            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${regType === 'merchant' ? 'bg-[#221610] text-primary shadow-sm' : 'text-white/30 hover:text-white/50'}`}
                         >
                             <Store className="w-4 h-4" />
                             Vendedor
@@ -131,7 +131,7 @@ export default function RegisterPage() {
                                 value={fullName}
                                 onChange={(e) => setFullName(e.target.value)}
                                 placeholder="Digite seu nome"
-                                className="w-full h-12 rounded-2xl bg-[#f0f2f4] dark:bg-[#101922] border border-white/5 focus:ring-2 focus:ring-primary/50 outline-none pl-12 pr-4 text-sm transition-all placeholder:text-white/10"
+                                className="w-full h-12 rounded-2xl bg-[#101922] border border-white/5 focus:ring-2 focus:ring-primary/50 outline-none pl-12 pr-4 text-sm transition-all placeholder:text-white/10"
                             />
                         </div>
                     </div>
@@ -146,7 +146,7 @@ export default function RegisterPage() {
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 placeholder="exemplo@email.com"
-                                className="w-full h-12 rounded-2xl bg-[#f0f2f4] dark:bg-[#101922] border border-white/5 focus:ring-2 focus:ring-primary/50 outline-none pl-12 pr-4 text-sm transition-all placeholder:text-white/10"
+                                className="w-full h-12 rounded-2xl bg-[#101922] border border-white/5 focus:ring-2 focus:ring-primary/50 outline-none pl-12 pr-4 text-sm transition-all placeholder:text-white/10"
                             />
                         </div>
                     </div>
@@ -162,7 +162,7 @@ export default function RegisterPage() {
                                     value={storeName}
                                     onChange={(e) => setStoreName(e.target.value)}
                                     placeholder="Nome da sua marca"
-                                    className="w-full h-12 rounded-2xl bg-[#f0f2f4] dark:bg-[#101922] border border-white/5 focus:ring-2 focus:ring-primary/50 outline-none pl-12 pr-4 text-sm transition-all placeholder:text-white/10"
+                                    className="w-full h-12 rounded-2xl bg-[#101922] border border-white/5 focus:ring-2 focus:ring-primary/50 outline-none pl-12 pr-4 text-sm transition-all placeholder:text-white/10"
                                 />
                             </div>
                         </div>
@@ -178,7 +178,7 @@ export default function RegisterPage() {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder="Mínimo 8 caracteres"
-                                className="w-full h-12 rounded-2xl bg-[#f0f2f4] dark:bg-[#101922] border border-white/5 focus:ring-2 focus:ring-primary/50 outline-none pl-12 pr-4 text-sm transition-all placeholder:text-white/10"
+                                className="w-full h-12 rounded-2xl bg-[#101922] border border-white/5 focus:ring-2 focus:ring-primary/50 outline-none pl-12 pr-4 text-sm transition-all placeholder:text-white/10"
                             />
                         </div>
                     </div>

@@ -53,30 +53,32 @@ export default function LoginPage() {
     };
 
     return (
-        <main className="min-h-screen w-full bg-background-light dark:bg-background-dark flex flex-col items-center justify-center p-4">
-            <div className="w-full max-w-[480px] bg-white dark:bg-[#1a242e] rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in duration-500">
+        <main className="min-h-screen w-full flex flex-col items-center justify-center p-4" style={{ backgroundColor: '#221610' }}>
+            <div className="w-full max-w-[480px] rounded-[32px] shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in duration-500" style={{ backgroundColor: '#1a242e' }}>
                 {/* Branding */}
                 <div className="pt-10 pb-6 px-8 flex flex-col items-center">
                     <div className="w-20 h-20 bg-primary rounded-[24px] flex items-center justify-center mb-6 shadow-xl shadow-primary/30 transform -rotate-6">
                         <ShoppingBag className="text-white w-10 h-10" />
                     </div>
-                    <h1 className="text-[#111418] dark:text-white text-4xl font-black tracking-tight mb-2 uppercase">shopcrat</h1>
+                    <h1 className="text-white text-4xl font-black tracking-tight mb-2 uppercase">shopcrat</h1>
                     <p className="text-[#617589] dark:text-[#a0b0c0] text-sm font-bold uppercase tracking-widest text-[10px]">Descubra. Assista. Compre.</p>
                 </div>
 
                 {/* Login Type Toggle */}
                 <div className="px-8 mb-6">
-                    <div className="flex bg-[#f0f2f4] dark:bg-[#101922] p-1.5 rounded-2xl border border-white/5">
+                    <div className="flex p-1.5 rounded-2xl border border-white/5" style={{ backgroundColor: '#101922' }}>
                         <button
                             onClick={() => setLoginType("user")}
-                            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${loginType === 'user' ? 'bg-white dark:bg-background-dark text-primary shadow-sm' : 'text-white/30 hover:text-white/50'}`}
+                            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${loginType === 'user' ? 'text-primary shadow-sm' : 'text-white/30 hover:text-white/50'}`}
+                            style={loginType === 'user' ? { backgroundColor: '#221610' } : {}}
                         >
                             <User className="w-4 h-4" />
                             Sou Cliente
                         </button>
                         <button
                             onClick={() => setLoginType("merchant")}
-                            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${loginType === 'merchant' ? 'bg-white dark:bg-background-dark text-primary shadow-sm' : 'text-white/30 hover:text-white/50'}`}
+                            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${loginType === 'merchant' ? 'text-primary shadow-sm' : 'text-white/30 hover:text-white/50'}`}
+                            style={loginType === 'merchant' ? { backgroundColor: '#221610' } : {}}
                         >
                             <Store className="w-4 h-4" />
                             Sou Vendedor
@@ -100,7 +102,8 @@ export default function LoginPage() {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             placeholder={loginType === 'user' ? "Digite seu e-mail" : "Digite seu e-mail da loja"}
-                            className="w-full h-14 rounded-2xl bg-[#f0f2f4] dark:bg-[#101922] border border-white/5 focus:ring-2 focus:ring-primary/50 outline-none px-6 text-base transition-all placeholder:text-white/10"
+                            className="w-full h-14 rounded-2xl border border-white/5 focus:ring-2 focus:ring-primary/50 outline-none px-6 text-base transition-all placeholder:text-white/20 text-white"
+                            style={{ backgroundColor: '#101922' }}
                         />
                     </div>
 
@@ -113,7 +116,8 @@ export default function LoginPage() {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder="Digite sua senha"
-                                className="w-full h-14 rounded-2xl bg-[#f0f2f4] dark:bg-[#101922] border border-white/5 focus:ring-2 focus:ring-primary/50 outline-none px-6 text-base transition-all placeholder:text-white/10"
+                                className="w-full h-14 rounded-2xl border border-white/5 focus:ring-2 focus:ring-primary/50 outline-none px-6 text-base transition-all placeholder:text-white/20 text-white"
+                                style={{ backgroundColor: '#101922' }}
                             />
                             <button
                                 type="button"

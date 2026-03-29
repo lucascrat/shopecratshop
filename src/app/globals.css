@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Force class-based dark mode (Tailwind v4) */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-primary: #f46a25;
   --color-background-light: #f8f6f5;
@@ -19,8 +22,14 @@
 }
 
 @layer base {
+  /* App is always dark-themed */
+  html {
+    color-scheme: dark;
+  }
   body {
-    @apply font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100;
+    @apply font-display bg-background-dark text-slate-100;
+    background-color: #221610;
+    color: #f1f5f9;
   }
 }
 
