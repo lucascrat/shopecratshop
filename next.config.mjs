@@ -19,6 +19,10 @@ const nextConfig = {
             },
             {
                 protocol: 'https',
+                hostname: 'pub-e3ab5b2aa965482abff2ada469511215.r2.dev',
+            },
+            {
+                protocol: 'https',
                 hostname: 'v1.pinimg.com',
             },
             {
