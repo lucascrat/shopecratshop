@@ -2,8 +2,8 @@
 
 import {
     Grid3X3, Play, Share2, ArrowLeft, Loader2, ShoppingBag,
-    Video, Search, X, Star, Zap, ChevronRight, Store,
-    Phone, MapPin, Clock, CheckCircle2, Package
+    Video, Search, X, Star, ChevronRight, Store,
+    CheckCircle2, Package
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { apiFetch } from "@/lib/api";
@@ -19,6 +19,8 @@ interface Product {
     images: string[];
     description?: string;
     stock?: number;
+    avg_rating?: number;
+    reviews_count?: number;
 }
 
 interface StoreVideo {
@@ -273,7 +275,7 @@ export default function StoreProfile({ username }: { username?: string }) {
 
                                 return (
                                     <Link
-                                        href={`/checkout?id=${product.id}`}
+                                        href={`/product/${product.id}`}
                                         key={product.id}
                                         className="group flex flex-col bg-white/[0.04] border border-white/[0.06] rounded-2xl overflow-hidden hover:border-[#f46a25]/30 hover:bg-white/[0.07] transition-all active:scale-95"
                                     >
@@ -314,6 +316,13 @@ export default function StoreProfile({ username }: { username?: string }) {
                                             </h3>
 
                                             <div className="mt-auto">
+                                                {product.avg_rating && product.avg_rating > 0 ? (
+                                                    <div className="flex items-center gap-1 mb-1.5">
+                                                        <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                                                        <span className="text-[10px] text-yellow-400 font-bold">{Number(product.avg_rating).toFixed(1)}</span>
+                                                        <span className="text-[9px] text-white/25">({product.reviews_count})</span>
+                                                    </div>
+                                                ) : null}
                                                 {product.old_price && product.old_price > product.price && (
                                                     <p className="text-[10px] text-white/30 line-through leading-none">
                                                         R$ {product.old_price.toFixed(2)}

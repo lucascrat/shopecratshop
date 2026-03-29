@@ -12,10 +12,17 @@ export async function GET(request: NextRequest) {
 
         if (id) {
             const { rows } = await query(
-                `SELECT p.*, s.name as store_name
+                `SELECT p.*,
+                        s.name as store_name, s.logo_url as store_logo, s.description as store_description,
+                        pr_owner.username as store_username,
+                        COALESCE(AVG(r.rating), 0)::numeric(3,1) as avg_rating,
+                        COUNT(r.id)::int as reviews_count
                  FROM products p
                  JOIN stores s ON p.store_id = s.id
-                 WHERE p.id = $1`,
+                 JOIN profiles pr_owner ON s.merchant_id = pr_owner.id
+                 LEFT JOIN product_reviews r ON r.product_id = p.id
+                 WHERE p.id = $1
+                 GROUP BY p.id, s.name, s.logo_url, s.description, pr_owner.username`,
                 [id]
             );
             if (rows.length === 0) {
@@ -24,23 +31,27 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ product: rows[0] });
         }
 
-        let sql = "SELECT * FROM products";
+        let sql = `SELECT p.*,
+                   COALESCE(AVG(r.rating), 0)::numeric(3,1) as avg_rating,
+                   COUNT(r.id)::int as reviews_count
+                   FROM products p
+                   LEFT JOIN product_reviews r ON r.product_id = p.id`;
         const conditions: string[] = [];
         const params: any[] = [];
         let paramIdx = 1;
 
         if (storeId) {
-            conditions.push(`store_id = $${paramIdx++}`);
+            conditions.push(`p.store_id = $${paramIdx++}`);
             params.push(storeId);
         }
 
         if (search) {
-            conditions.push(`name ILIKE $${paramIdx++}`);
+            conditions.push(`p.name ILIKE $${paramIdx++}`);
             params.push(`%${search}%`);
         }
 
         if (category && category !== "Todos") {
-            conditions.push(`category = $${paramIdx++}`);
+            conditions.push(`p.category = $${paramIdx++}`);
             params.push(category);
         }
 
@@ -48,7 +59,7 @@ export async function GET(request: NextRequest) {
             sql += " WHERE " + conditions.join(" AND ");
         }
 
-        sql += ` ORDER BY created_at DESC LIMIT $${paramIdx}`;
+        sql += ` GROUP BY p.id ORDER BY p.created_at DESC LIMIT $${paramIdx}`;
         params.push(limit);
 
         const { rows } = await query(sql, params);
