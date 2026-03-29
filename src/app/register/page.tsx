@@ -87,7 +87,7 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="pt-6 pb-4 px-8 flex flex-col items-center">
-                    <h1 className="text-[#111418] dark:text-white text-3xl font-black tracking-tight mb-1 uppercase italic">Criar Conta</h1>
+                    <h1 className="text-white text-3xl font-black tracking-tight mb-1 uppercase italic">Criar Conta</h1>
                     <p className="text-white/30 text-[10px] font-black uppercase tracking-widest text-center">Junte-se à revolução do vídeo shopping</p>
                 </div>
 

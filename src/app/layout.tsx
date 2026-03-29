@@ -11,7 +11,8 @@ export const metadata: Metadata = {
     title: "Shopcrat - Video Shopping Experience",
     description: "Discover products through immersive vertical videos. Shop like never before.",
     manifest: "/manifest.json",
-};
+    colorScheme: "dark",
+} as Metadata;
 
 export const viewport: Viewport = {
     themeColor: "#f46a25",
@@ -32,7 +33,12 @@ export default function RootLayout({
     children: React.ReactNode;
 }>) {
     return (
-        <html lang="pt-BR" className="dark scroll-smooth" style={{ colorScheme: 'dark' }}>
+        <html lang="pt-BR" className="dark scroll-smooth" style={{ colorScheme: 'dark' }} suppressHydrationWarning>
+            <head>
+                <meta name="color-scheme" content="dark" />
+                {/* Force dark class before first paint to prevent flash of light mode */}
+                <script dangerouslySetInnerHTML={{ __html: `document.documentElement.classList.add('dark');document.documentElement.style.colorScheme='dark';` }} />
+            </head>
             <body className={`${plusJakartaSans.variable} font-sans antialiased flex flex-col items-center justify-center min-h-screen`} style={{ backgroundColor: '#221610', color: '#f1f5f9' }}>
                 <ErrorBoundary>
                     <AuthProvider>

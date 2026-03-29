@@ -93,15 +93,34 @@
   }
 }
 
-/* ── Override prefers-color-scheme: light ── */
+/* ── Override prefers-color-scheme: light — force dark UI always ── */
 @media (prefers-color-scheme: light) {
+  html, html * {
+    color-scheme: dark !important;
+  }
   html {
-    color-scheme: dark;
-    background-color: #0d0d0d;
+    background-color: #0d0d0d !important;
   }
   body {
     background-color: #0d0d0d !important;
     color: #f1f5f9 !important;
+  }
+  /* Force all inputs to stay dark even when OS is in light mode */
+  input, textarea, select, button {
+    background-color: rgba(255,255,255,0.05) !important;
+    color: #f1f5f9 !important;
+    -webkit-text-fill-color: #f1f5f9 !important;
+    border-color: rgba(255,255,255,0.1) !important;
+  }
+  /* Autofill override in light mode */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  select:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0 1000px #1a1a1a inset !important;
+    -webkit-text-fill-color: #f1f5f9 !important;
+    background-color: #1a1a1a !important;
   }
 }
 
