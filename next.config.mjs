@@ -4,7 +4,6 @@ const nextConfig = {
     images: {
         dangerouslyAllowSVG: true,
         contentDispositionType: 'attachment',
-        contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
         remotePatterns: [
             {
                 protocol: 'https',
@@ -21,8 +20,29 @@ const nextConfig = {
             {
                 protocol: 'https',
                 hostname: 'v1.pinimg.com',
-            }
+            },
+            {
+                protocol: 'https',
+                hostname: '*.r2.dev',
+            },
         ],
+    },
+    async headers() {
+        return [
+            {
+                source: '/(.*)',
+                headers: [
+                    {
+                        key: 'Cross-Origin-Embedder-Policy',
+                        value: 'unsafe-none',
+                    },
+                    {
+                        key: 'Cross-Origin-Opener-Policy',
+                        value: 'same-origin-allow-popups',
+                    },
+                ],
+            },
+        ];
     },
 };
 
