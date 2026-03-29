@@ -5,7 +5,6 @@ import {
     Video, Search, X, Star, Zap, ChevronRight, Store,
     Phone, MapPin, Clock, CheckCircle2, Package
 } from "lucide-react";
-import Image from "next/image";
 import { useState, useEffect, useMemo } from "react";
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
@@ -176,7 +175,8 @@ export default function StoreProfile({ username }: { username?: string }) {
                         <div className="relative shrink-0">
                             <div className="w-20 h-20 rounded-[24px] border-4 border-[#0d0d0d] bg-white/10 overflow-hidden shadow-2xl">
                                 {store.logo_url ? (
-                                    <Image src={store.logo_url} alt={store.name} fill className="object-cover" />
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={store.logo_url} alt={store.name} className="w-full h-full object-cover" />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center bg-[#f46a25]/10">
                                         <Store className="w-8 h-8 text-[#f46a25]" />
@@ -280,11 +280,11 @@ export default function StoreProfile({ username }: { username?: string }) {
                                         {/* Image */}
                                         <div className="relative aspect-square bg-black/30 overflow-hidden">
                                             {hasImage ? (
-                                                <Image
+                                                // eslint-disable-next-line @next/next/no-img-element
+                                                <img
                                                     src={product.images[0]}
                                                     alt={product.name}
-                                                    fill
-                                                    className="object-cover group-hover:scale-105 transition-transform duration-500"
+                                                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                                 />
                                             ) : (
                                                 <div className="absolute inset-0 flex items-center justify-center">

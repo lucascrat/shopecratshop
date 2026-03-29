@@ -237,7 +237,8 @@ export default function VideoItem({ video }: VideoItemProps) {
                 <div className="flex items-center gap-3 mb-3">
                     <Link href={`/store/${video.merchant.username}`} className="relative group">
                         <div className="w-12 h-12 rounded-full border-2 border-primary overflow-hidden group-hover:scale-105 transition-transform">
-                            <Image src={video.merchant.avatar} alt={video.merchant.username} width={48} height={48} className="object-cover" />
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={video.merchant.avatar} alt={video.merchant.username} className="w-full h-full object-cover" />
                         </div>
                         <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-primary px-1 rounded-full">
                             <Plus className="w-3 h-3 text-white" />
@@ -265,7 +266,8 @@ export default function VideoItem({ video }: VideoItemProps) {
                 <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl p-3 flex items-center gap-3">
                     <div className="w-16 h-16 rounded-xl overflow-hidden relative border border-white/10 shrink-0 bg-black/40">
                         {video.product.image && (
-                            <Image src={video.product.image} alt={video.product.name} fill className="object-cover" />
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={video.product.image} alt={video.product.name} className="w-full h-full object-cover" />
                         )}
                     </div>
                     <div className="flex-1 min-w-0">

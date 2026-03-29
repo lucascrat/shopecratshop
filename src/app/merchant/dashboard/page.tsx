@@ -187,11 +187,11 @@ export default function MerchantDashboard() {
                         >
                             <div className="w-full h-full rounded-[14px] overflow-hidden -rotate-3 relative">
                                 {store?.logo_url ? (
-                                    <Image
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
                                         src={store.logo_url}
                                         alt={storeName}
-                                        fill
-                                        className="object-cover"
+                                        className="w-full h-full object-cover"
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center bg-primary/10">
@@ -369,11 +369,10 @@ export default function MerchantDashboard() {
                             <div className="relative">
                                 <div className="w-28 h-28 rounded-[32px] border-2 border-primary/30 overflow-hidden bg-white/5">
                                     {editLogoUrl ? (
-                                        <Image
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
                                             src={editLogoUrl}
                                             alt="Logo da loja"
-                                            width={112}
-                                            height={112}
                                             className="w-full h-full object-cover"
                                         />
                                     ) : (
