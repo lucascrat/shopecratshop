@@ -1,105 +1,238 @@
 "use client";
 
-import { ChevronLeft, User, Bell, Shield, Wallet, CircleHelp, Info, Languages, Moon, Trash2, LogOut, ChevronRight } from "lucide-react";
+import { useState } from "react";
+import {
+    ChevronLeft, User, Bell, Shield, Wallet, CircleHelp, Info,
+    Languages, Moon, Trash2, LogOut, ChevronRight, AtSign,
+    Camera, Loader2, Check, Pencil
+} from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
+import UsernameEditor from "@/components/UsernameEditor";
+import { apiFetch } from "@/lib/api";
+import { toast } from "sonner";
 
 export default function SettingsPage() {
-    const { signOut } = useAuth();
+    const { user, profile, signOut, refreshProfile } = useAuth();
 
-    const MOCK_SECTIONS = [
-        {
-            title: "Conta",
-            items: [
-                { icon: User, label: "Informações Pessoais", color: "text-blue-400" },
-                { icon: Wallet, label: "Métodos de Pagamento", color: "text-purple-400" },
-                { icon: Shield, label: "Segurança e Senha", color: "text-green-400" },
-            ]
-        },
+    const [showUsernameEditor, setShowUsernameEditor] = useState(false);
+    const [editingName, setEditingName] = useState(false);
+    const [newName, setNewName] = useState("");
+    const [savingName, setSavingName] = useState(false);
+
+    async function handleSaveUsername(newUsername: string) {
+        await apiFetch("/api/profile/update", {
+            method: "PATCH",
+            body: JSON.stringify({ username: newUsername }),
+        });
+        if (refreshProfile) await refreshProfile();
+        setShowUsernameEditor(false);
+        toast.success(`@ atualizado para @${newUsername}!`);
+    }
+
+    async function handleSaveName() {
+        if (!newName.trim()) return;
+        setSavingName(true);
+        try {
+            await apiFetch("/api/profile/update", {
+                method: "PATCH",
+                body: JSON.stringify({ full_name: newName.trim() }),
+            });
+            if (refreshProfile) await refreshProfile();
+            setEditingName(false);
+            toast.success("Nome atualizado!");
+        } catch (e: any) {
+            toast.error(e.message || "Erro ao salvar");
+        } finally {
+            setSavingName(false);
+        }
+    }
+
+    const SECTIONS = [
         {
             title: "Preferências",
             items: [
-                { icon: Bell, label: "Notificações", color: "text-orange-400" },
-                { icon: Languages, label: "Idioma", detail: "Português (BR)", color: "text-cyan-400" },
-                { icon: Moon, label: "Aparência", detail: "Escuro", color: "text-indigo-400" },
+                { icon: Bell,      label: "Notificações",    color: "text-orange-400" },
+                { icon: Languages, label: "Idioma",          detail: "Português (BR)", color: "text-cyan-400" },
+                { icon: Moon,      label: "Aparência",       detail: "Escuro",         color: "text-indigo-400" },
             ]
         },
         {
             title: "Suporte",
             items: [
-                { icon: CircleHelp, label: "Central de Ajuda", color: "text-pink-400" },
-                { icon: Info, label: "Sobre o Shopcrat", color: "text-white/40" },
+                { icon: CircleHelp, label: "Central de Ajuda",    color: "text-pink-400" },
+                { icon: Info,       label: "Sobre o Shopcrat",    color: "text-white/40" },
             ]
         }
     ];
 
     return (
-        <main className="max-w-[430px] mx-auto min-h-screen bg-background-dark text-white pb-10">
+        <main className="max-w-[430px] mx-auto min-h-screen bg-[#0d0d0d] text-white pb-16">
+
             {/* Header */}
-            <header className="sticky top-0 z-20 bg-background-dark/80 backdrop-blur-xl border-b border-white/5 p-4 flex items-center justify-between">
+            <header className="sticky top-0 z-20 bg-[#0d0d0d]/90 backdrop-blur-xl border-b border-white/5 px-4 py-3 flex items-center justify-between">
                 <Link href="/profile" className="p-2 -ml-2 text-white/40 hover:text-white transition-colors">
                     <ChevronLeft className="w-6 h-6" />
                 </Link>
-                <h1 className="text-sm font-black uppercase tracking-widest italic">Configurações</h1>
+                <h1 className="text-sm font-black uppercase tracking-widest">Configurações</h1>
                 <div className="w-10" />
             </header>
 
-            {/* Profile Summary Card */}
-            <div className="p-6">
-                <div className="bg-white/5 border border-white/10 rounded-[32px] p-6 flex items-center gap-4 mb-8">
-                    <div className="w-16 h-16 rounded-2xl bg-primary/20 p-1">
-                        <div className="w-full h-full rounded-xl overflow-hidden relative">
-                            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=alex" alt="Alex" className="object-cover" />
+            <div className="p-5 space-y-6">
+
+                {/* ── Perfil Card ── */}
+                <div className="bg-white/[0.04] border border-white/[0.07] rounded-3xl overflow-hidden">
+                    {/* Avatar + info */}
+                    <div className="p-5 flex items-center gap-4 border-b border-white/5">
+                        <div className="relative shrink-0">
+                            <div className="w-16 h-16 rounded-2xl overflow-hidden bg-white/10">
+                                {profile?.avatar_url ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-2xl font-black text-white/20">
+                                        {(profile?.full_name || profile?.username || "?")[0].toUpperCase()}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-[#f46a25] rounded-lg flex items-center justify-center border-2 border-[#0d0d0d]">
+                                <Camera className="w-3 h-3 text-white" />
+                            </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="font-black text-base truncate">{profile?.full_name || "Usuário"}</p>
+                            <p className="text-[11px] text-[#f46a25] font-bold">@{profile?.username}</p>
+                            <p className="text-[10px] text-white/25 mt-0.5 capitalize">{profile?.role || "cliente"}</p>
                         </div>
                     </div>
-                    <div>
-                        <h3 className="text-base font-black truncate">Alex Rivera</h3>
-                        <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest leading-relaxed">Conta Premium desde Out 2025</p>
+
+                    {/* Nome */}
+                    <div className="p-5 border-b border-white/5">
+                        <div className="flex items-center justify-between mb-2">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-white/40 flex items-center gap-1.5">
+                                <User className="w-3 h-3" /> Nome completo
+                            </p>
+                            {!editingName && (
+                                <button onClick={() => { setNewName(profile?.full_name || ""); setEditingName(true); }}
+                                    className="text-[10px] text-[#f46a25] font-black flex items-center gap-1">
+                                    <Pencil className="w-3 h-3" /> Editar
+                                </button>
+                            )}
+                        </div>
+                        {editingName ? (
+                            <div className="space-y-2">
+                                <input
+                                    type="text"
+                                    value={newName}
+                                    onChange={(e) => setNewName(e.target.value)}
+                                    maxLength={60}
+                                    autoFocus
+                                    className="w-full bg-white/5 border border-white/10 focus:border-[#f46a25]/50 rounded-xl px-3 py-2.5 text-sm outline-none"
+                                />
+                                <div className="flex gap-2">
+                                    <button onClick={handleSaveName} disabled={savingName || !newName.trim()}
+                                        className="flex-1 flex items-center justify-center gap-2 bg-[#f46a25] disabled:opacity-40 text-white font-black py-2.5 rounded-xl text-xs uppercase tracking-wider">
+                                        {savingName ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                                        Salvar
+                                    </button>
+                                    <button onClick={() => setEditingName(false)}
+                                        className="px-4 bg-white/5 border border-white/10 text-white/40 font-black rounded-xl text-xs uppercase tracking-wider">
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <p className="text-sm text-white/70">{profile?.full_name || "—"}</p>
+                        )}
+                    </div>
+
+                    {/* Username */}
+                    <div className="p-5">
+                        <div className="flex items-center justify-between mb-2">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-white/40 flex items-center gap-1.5">
+                                <AtSign className="w-3 h-3" /> Seu @
+                            </p>
+                            {!showUsernameEditor && (
+                                <button onClick={() => setShowUsernameEditor(true)}
+                                    className="text-[10px] text-[#f46a25] font-black flex items-center gap-1">
+                                    <Pencil className="w-3 h-3" /> Alterar
+                                </button>
+                            )}
+                        </div>
+                        {!showUsernameEditor ? (
+                            <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5">
+                                <AtSign className="w-4 h-4 text-white/30 shrink-0" />
+                                <span className="text-sm font-bold text-white/70">{profile?.username || "—"}</span>
+                            </div>
+                        ) : (
+                            <UsernameEditor
+                                currentUsername={profile?.username || ""}
+                                currentId={user?.id || ""}
+                                type="profile"
+                                onSave={handleSaveUsername}
+                                onCancel={() => setShowUsernameEditor(false)}
+                            />
+                        )}
+                        <p className="text-[10px] text-white/20 mt-2">
+                            Seu perfil público: shopcrat.shop/u/{profile?.username}
+                        </p>
                     </div>
                 </div>
 
-                {/* Sections */}
-                <div className="space-y-8">
-                    {MOCK_SECTIONS.map((section) => (
-                        <div key={section.title} className="space-y-4">
-                            <h4 className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] px-2">{section.title}</h4>
-                            <div className="bg-white/5 border border-white/5 rounded-[32px] overflow-hidden">
-                                {section.items.map((item, index) => {
-                                    const Icon = item.icon;
-                                    return (
-                                        <button
-                                            key={item.label}
-                                            className={`w-full flex items-center justify-between p-5 hover:bg-white/5 transition-colors group ${index !== section.items.length - 1 ? 'border-b border-white/5' : ''
-                                                }`}
-                                        >
-                                            <div className="flex items-center gap-4">
-                                                <div className={`w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center ${item.color}`}>
-                                                    <Icon className="w-5 h-5" />
-                                                </div>
-                                                <div className="text-left">
-                                                    <p className="text-sm font-bold text-white/80 group-hover:text-white">{item.label}</p>
-                                                    {item.detail && <p className="text-[10px] font-bold text-white/20 uppercase tracking-wider">{item.detail}</p>}
-                                                </div>
-                                            </div>
-                                            <ChevronRight className="w-4 h-4 text-white/10 group-hover:text-primary transition-colors" />
-                                        </button>
-                                    );
-                                })}
+                {/* ── Segurança ── */}
+                <div className="bg-white/[0.04] border border-white/[0.07] rounded-3xl overflow-hidden">
+                    <div className="px-4 pt-4 pb-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20 px-1 mb-3">Segurança</p>
+                    </div>
+                    {[
+                        { icon: Wallet, label: "Métodos de Pagamento", color: "text-purple-400" },
+                        { icon: Shield, label: "Segurança e Senha",     color: "text-green-400" },
+                    ].map((item, i, arr) => (
+                        <button key={item.label}
+                            className={`w-full flex items-center justify-between px-5 py-4 hover:bg-white/5 transition-colors group ${i < arr.length - 1 ? "border-b border-white/5" : ""}`}>
+                            <div className="flex items-center gap-3">
+                                <div className={`w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center ${item.color}`}>
+                                    <item.icon className="w-4 h-4" />
+                                </div>
+                                <span className="text-sm font-bold text-white/70 group-hover:text-white">{item.label}</span>
                             </div>
-                        </div>
+                            <ChevronRight className="w-4 h-4 text-white/10 group-hover:text-[#f46a25]" />
+                        </button>
                     ))}
                 </div>
 
-                {/* Danger Zone */}
-                <div className="mt-12 space-y-4">
-                    <button
-                        onClick={() => signOut()}
-                        className="w-full h-15 bg-white/5 hover:bg-red-500/10 text-white/60 hover:text-red-500 font-black rounded-2xl border border-white/5 hover:border-red-500/20 flex items-center justify-center gap-2 transition-all uppercase tracking-widest text-xs"
-                    >
+                {/* ── Other sections ── */}
+                {SECTIONS.map((section) => (
+                    <div key={section.title} className="bg-white/[0.04] border border-white/[0.07] rounded-3xl overflow-hidden">
+                        <div className="px-4 pt-4 pb-2">
+                            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20 px-1 mb-1">{section.title}</p>
+                        </div>
+                        {section.items.map((item, i, arr) => (
+                            <button key={item.label}
+                                className={`w-full flex items-center justify-between px-5 py-4 hover:bg-white/5 transition-colors group ${i < arr.length - 1 ? "border-b border-white/5" : ""}`}>
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center ${item.color}`}>
+                                        <item.icon className="w-4 h-4" />
+                                    </div>
+                                    <div className="text-left">
+                                        <span className="text-sm font-bold text-white/70 group-hover:text-white block">{item.label}</span>
+                                        {item.detail && <span className="text-[10px] text-white/25">{item.detail}</span>}
+                                    </div>
+                                </div>
+                                <ChevronRight className="w-4 h-4 text-white/10 group-hover:text-[#f46a25]" />
+                            </button>
+                        ))}
+                    </div>
+                ))}
+
+                {/* ── Sair ── */}
+                <div className="space-y-3 pt-2">
+                    <button onClick={() => signOut()}
+                        className="w-full py-4 bg-white/5 hover:bg-red-500/10 text-white/50 hover:text-red-400 font-black rounded-2xl border border-white/5 hover:border-red-500/20 flex items-center justify-center gap-2 transition-all uppercase tracking-widest text-xs">
                         <LogOut className="w-4 h-4" />
                         Sair da Conta
                     </button>
-                    <button className="w-full py-4 text-white/10 hover:text-red-500/40 text-[9px] font-black uppercase tracking-[0.3em] flex items-center justify-center gap-2 transition-all">
+                    <button className="w-full py-3 text-white/10 hover:text-red-500/40 text-[9px] font-black uppercase tracking-[0.3em] flex items-center justify-center gap-2 transition-all">
                         <Trash2 className="w-3 h-3" />
                         Excluir Minha Conta
                     </button>

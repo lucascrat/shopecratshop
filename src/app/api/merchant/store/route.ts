@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
         const user = requireAuth(request);
 
         const { rows } = await query(
-            "SELECT id, name, description, logo_url FROM stores WHERE merchant_id = $1 LIMIT 1",
+            "SELECT id, name, description, logo_url, username FROM stores WHERE merchant_id = $1 LIMIT 1",
             [user.id]
         );
 
@@ -27,7 +27,7 @@ export async function PATCH(request: NextRequest) {
     try {
         const user = requireAuth(request);
         const body = await request.json();
-        const { name, description, logoUrl } = body;
+        const { name, description, logoUrl, username } = body;
 
         const storeCheck = await query(
             "SELECT id FROM stores WHERE merchant_id = $1 LIMIT 1",
@@ -38,6 +38,7 @@ export async function PATCH(request: NextRequest) {
             return NextResponse.json({ error: "Loja não encontrada" }, { status: 404 });
         }
 
+        const storeId = storeCheck.rows[0].id;
         const updates: string[] = [];
         const params: any[] = [];
 
@@ -53,6 +54,26 @@ export async function PATCH(request: NextRequest) {
             params.push(logoUrl);
             updates.push(`logo_url = $${params.length}`);
         }
+        if (username !== undefined) {
+            const u = username.toLowerCase().trim();
+            const RESERVED = ["admin","shopcrat","shop","loja","store","api","feed","login","register","checkout","profile","settings","search","merchant","product"];
+            if (!/^[a-z0-9_]{3,30}$/.test(u)) {
+                return NextResponse.json({ error: "Username inválido. Use apenas letras minúsculas, números e _ (3–30 caracteres)" }, { status: 400 });
+            }
+            if (RESERVED.includes(u)) {
+                return NextResponse.json({ error: "Este username é reservado" }, { status: 400 });
+            }
+            const existing = await query(
+                "SELECT id FROM stores WHERE username = $1 AND id != $2",
+                [u, storeId]
+            );
+            if (existing.rows.length > 0) {
+                return NextResponse.json({ error: "Este @ de loja já está em uso" }, { status: 409 });
+            }
+            params.push(u);
+            updates.push(`username = $${params.length}`);
+            updates.push(`username_updated_at = NOW()`);
+        }
 
         if (updates.length === 0) {
             return NextResponse.json({ error: "Nenhum campo para atualizar" }, { status: 400 });
@@ -60,7 +81,7 @@ export async function PATCH(request: NextRequest) {
 
         params.push(user.id);
         const { rows } = await query(
-            `UPDATE stores SET ${updates.join(", ")} WHERE merchant_id = $${params.length} RETURNING id, name, description, logo_url`,
+            `UPDATE stores SET ${updates.join(", ")} WHERE merchant_id = $${params.length} RETURNING id, name, description, logo_url, username`,
             params
         );
 

@@ -18,7 +18,9 @@ import {
     X,
     Save,
     Store,
+    AtSign,
 } from "lucide-react";
+import UsernameEditor from "@/components/UsernameEditor";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -32,6 +34,7 @@ interface StoreInfo {
     name: string;
     description: string;
     logo_url: string | null;
+    username: string;
 }
 
 interface DashboardData {
@@ -55,6 +58,7 @@ export default function MerchantDashboard() {
     const [editLogoUrl, setEditLogoUrl] = useState<string | null>(null);
     const [uploadingLogo, setUploadingLogo] = useState(false);
     const [savingStore, setSavingStore] = useState(false);
+    const [showUsernameEditor, setShowUsernameEditor] = useState(false);
     const logoInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -98,7 +102,18 @@ export default function MerchantDashboard() {
         setEditName(dashboard.store.name);
         setEditDescription(dashboard.store.description || "");
         setEditLogoUrl(dashboard.store.logo_url || null);
+        setShowUsernameEditor(false);
         setShowEditStore(true);
+    }
+
+    async function handleSaveStoreUsername(newUsername: string) {
+        const res = await apiFetch<{ store: StoreInfo }>("/api/merchant/store", {
+            method: "PATCH",
+            body: JSON.stringify({ username: newUsername }),
+        });
+        setDashboard((prev) => prev ? { ...prev, store: res.store } : prev);
+        setShowUsernameEditor(false);
+        toast.success(`@ da loja atualizado para @${newUsername}!`);
     }
 
     async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -440,6 +455,39 @@ export default function MerchantDashboard() {
                                 className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3.5 text-sm focus:outline-none focus:border-primary/50 placeholder:text-white/20 resize-none"
                             />
                             <p className="text-[9px] text-white/20 mt-1 text-right">{editDescription.length}/200</p>
+                        </div>
+
+                        {/* Username da loja */}
+                        <div>
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30">
+                                    @ da Loja
+                                </label>
+                                {!showUsernameEditor && (
+                                    <button
+                                        onClick={() => setShowUsernameEditor(true)}
+                                        className="text-[10px] text-[#f46a25] font-black flex items-center gap-1"
+                                    >
+                                        <Pencil className="w-3 h-3" /> Alterar
+                                    </button>
+                                )}
+                            </div>
+                            {!showUsernameEditor ? (
+                                <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-2xl px-4 py-3.5">
+                                    <AtSign className="w-4 h-4 text-white/30 shrink-0" />
+                                    <span className="text-sm text-white/70 font-bold">
+                                        {dashboard?.store.username || "sem @"}
+                                    </span>
+                                </div>
+                            ) : (
+                                <UsernameEditor
+                                    currentUsername={dashboard?.store.username || ""}
+                                    currentId={dashboard?.store.id || ""}
+                                    type="store"
+                                    onSave={handleSaveStoreUsername}
+                                    onCancel={() => setShowUsernameEditor(false)}
+                                />
+                            )}
                         </div>
 
                         {/* Save */}
