@@ -6,8 +6,13 @@ export async function GET(request: NextRequest) {
     try {
         const authUser = requireAuth(request);
 
+        // Join profiles + auth to get email too
         const { rows } = await query(
-            "SELECT id, username, full_name, avatar_url, role, email, created_at FROM profiles WHERE id = $1",
+            `SELECT p.id, p.username, p.full_name, p.avatar_url, p.role, p.created_at,
+                    a.email
+             FROM profiles p
+             JOIN auth a ON a.profile_id = p.id
+             WHERE p.id = $1`,
             [authUser.id]
         );
 
@@ -16,6 +21,7 @@ export async function GET(request: NextRequest) {
         }
 
         return NextResponse.json({ profile: rows[0] });
+
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         if (message === "Não autorizado") {
