@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
         // Get store by merchant ID
         if (merchantId) {
             const { rows } = await query(
-                "SELECT * FROM stores WHERE merchant_id = $1",
+                "SELECT id, name, description, logo_url, banner_url, merchant_id, username FROM stores WHERE merchant_id = $1",
                 [merchantId]
             );
             if (rows.length === 0) {
@@ -25,7 +25,8 @@ export async function GET(request: NextRequest) {
         if (username) {
             // Try store's own username first
             let storeRows = (await query(
-                `SELECT s.*, p.username as profile_username
+                `SELECT s.id, s.name, s.description, s.logo_url, s.banner_url, s.merchant_id, s.username,
+                        p.username as profile_username
                  FROM stores s JOIN profiles p ON s.merchant_id = p.id
                  WHERE s.username = $1`,
                 [username]
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
                 )).rows;
                 if (profileRows.length > 0) {
                     storeRows = (await query(
-                        "SELECT * FROM stores WHERE merchant_id = $1",
+                        "SELECT id, name, description, logo_url, banner_url, merchant_id, username FROM stores WHERE merchant_id = $1",
                         [profileRows[0].id]
                     )).rows;
                 }

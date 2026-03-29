@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
         const user = requireAuth(request);
 
         const { rows } = await query(
-            "SELECT id, name, description, logo_url, username FROM stores WHERE merchant_id = $1 LIMIT 1",
+            "SELECT id, name, description, logo_url, banner_url, username FROM stores WHERE merchant_id = $1 LIMIT 1",
             [user.id]
         );
 
@@ -27,7 +27,7 @@ export async function PATCH(request: NextRequest) {
     try {
         const user = requireAuth(request);
         const body = await request.json();
-        const { name, description, logoUrl, username } = body;
+        const { name, description, logoUrl, bannerUrl, username } = body;
 
         const storeCheck = await query(
             "SELECT id FROM stores WHERE merchant_id = $1 LIMIT 1",
@@ -53,6 +53,10 @@ export async function PATCH(request: NextRequest) {
         if (logoUrl !== undefined) {
             params.push(logoUrl);
             updates.push(`logo_url = $${params.length}`);
+        }
+        if (bannerUrl !== undefined) {
+            params.push(bannerUrl);
+            updates.push(`banner_url = $${params.length}`);
         }
         if (username !== undefined) {
             const u = username.toLowerCase().trim();
@@ -81,7 +85,7 @@ export async function PATCH(request: NextRequest) {
 
         params.push(user.id);
         const { rows } = await query(
-            `UPDATE stores SET ${updates.join(", ")} WHERE merchant_id = $${params.length} RETURNING id, name, description, logo_url, username`,
+            `UPDATE stores SET ${updates.join(", ")} WHERE merchant_id = $${params.length} RETURNING id, name, description, logo_url, banner_url, username`,
             params
         );
 

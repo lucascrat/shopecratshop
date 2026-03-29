@@ -3,13 +3,14 @@
 import {
     Grid3X3, Play, Share2, ArrowLeft, Loader2, ShoppingBag,
     Video, Search, X, Star, ChevronRight, Store,
-    CheckCircle2, Package
+    CheckCircle2, Package, Trash2, Camera, AlertTriangle
 } from "lucide-react";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useAuth } from "@/components/AuthProvider";
 
 interface Product {
     id: string;
@@ -31,32 +32,41 @@ interface StoreVideo {
     created_at: string;
 }
 
-interface Store {
+interface StoreData {
     id: string;
     name: string;
     description: string;
     logo_url: string;
-    owner_id: string;
+    banner_url?: string;
+    merchant_id: string;
 }
 
 type TabType = "products" | "videos";
 
 export default function StoreProfile({ username }: { username?: string }) {
     const [activeTab, setActiveTab] = useState<TabType>("products");
-    const [store, setStore] = useState<Store | null>(null);
+    const [store, setStore] = useState<StoreData | null>(null);
     const [products, setProducts] = useState<Product[]>([]);
     const [videos, setVideos] = useState<StoreVideo[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [showSearch, setShowSearch] = useState(false);
+
+    // Owner-only state
+    const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+    const [uploadingBanner, setUploadingBanner] = useState(false);
+    const bannerInputRef = useRef<HTMLInputElement>(null);
+
     const router = useRouter();
+    const { user } = useAuth();
 
     useEffect(() => {
         if (!username) return;
         async function fetchStoreData() {
             setLoading(true);
             try {
-                const data = await apiFetch<{ store: Store; products: Product[]; videos: StoreVideo[] }>(
+                const data = await apiFetch<{ store: StoreData; products: Product[]; videos: StoreVideo[] }>(
                     `/api/stores?username=${username}`
                 );
                 setStore(data.store);
@@ -75,6 +85,8 @@ export default function StoreProfile({ username }: { username?: string }) {
         fetchStoreData();
     }, [username]);
 
+    const isOwner = !!(user && store && user.id === store.merchant_id);
+
     const filteredProducts = useMemo(() => {
         if (!search.trim()) return products;
         const q = search.toLowerCase();
@@ -90,6 +102,59 @@ export default function StoreProfile({ username }: { username?: string }) {
             toast.success("Link da loja copiado!");
         }
     };
+
+    // ── Delete video ──
+    async function handleDeleteVideo(videoId: string) {
+        setDeletingVideoId(videoId);
+        try {
+            await apiFetch(`/api/videos/${videoId}`, { method: "DELETE" });
+            setVideos(prev => prev.filter(v => v.id !== videoId));
+            toast.success("Vídeo excluído!");
+        } catch (err: any) {
+            toast.error(err.message || "Erro ao excluir vídeo");
+        } finally {
+            setDeletingVideoId(null);
+            setConfirmDeleteId(null);
+        }
+    }
+
+    // ── Upload banner ──
+    async function handleBannerUpload(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith("image/")) {
+            toast.error("Selecione uma imagem");
+            return;
+        }
+        setUploadingBanner(true);
+        try {
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("type", "image");
+
+            const token = localStorage.getItem("auth_token");
+            const res = await fetch("/api/upload", {
+                method: "POST",
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                body: formData,
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Erro no upload");
+
+            const bannerUrl = data.url;
+            await apiFetch("/api/merchant/store", {
+                method: "PATCH",
+                body: JSON.stringify({ bannerUrl }),
+            });
+            setStore(prev => prev ? { ...prev, banner_url: bannerUrl } : prev);
+            toast.success("Capa da loja atualizada!");
+        } catch (err: any) {
+            toast.error(err.message || "Erro ao enviar imagem");
+        } finally {
+            setUploadingBanner(false);
+            if (bannerInputRef.current) bannerInputRef.current.value = "";
+        }
+    }
 
     if (loading) {
         return (
@@ -164,10 +229,45 @@ export default function StoreProfile({ username }: { username?: string }) {
 
             {/* ── Store Hero ── */}
             <div className="relative">
-                {/* Banner gradient */}
-                <div className="h-36 bg-gradient-to-br from-[#f46a25]/20 via-[#f46a25]/5 to-transparent relative overflow-hidden">
-                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_#f46a2530_0%,_transparent_70%)]" />
+                {/* Banner — clickable for owner */}
+                <div className="relative h-36 overflow-hidden">
+                    {store.banner_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                            src={store.banner_url}
+                            alt="Capa da loja"
+                            className="w-full h-full object-cover"
+                        />
+                    ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-[#f46a25]/20 via-[#f46a25]/5 to-transparent">
+                            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_#f46a2530_0%,_transparent_70%)]" />
+                        </div>
+                    )}
+                    {/* Bottom fade */}
                     <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-[#0d0d0d] to-transparent" />
+
+                    {/* Banner edit button — owner only */}
+                    {isOwner && (
+                        <>
+                            <input
+                                ref={bannerInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={handleBannerUpload}
+                            />
+                            <button
+                                onClick={() => bannerInputRef.current?.click()}
+                                disabled={uploadingBanner}
+                                className="absolute top-3 right-3 z-10 flex items-center gap-1.5 bg-black/60 backdrop-blur-md border border-white/20 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl hover:bg-black/80 transition-all disabled:opacity-50"
+                            >
+                                {uploadingBanner
+                                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    : <Camera className="w-3.5 h-3.5" />}
+                                {uploadingBanner ? "Enviando..." : "Alterar capa"}
+                            </button>
+                        </>
+                    )}
                 </div>
 
                 {/* Logo + Info */}
@@ -220,9 +320,16 @@ export default function StoreProfile({ username }: { username?: string }) {
                     </div>
 
                     {/* Action button */}
-                    <button className="w-full bg-[#f46a25] text-white font-black py-3.5 rounded-2xl text-xs uppercase tracking-widest shadow-lg shadow-[#f46a25]/25 active:scale-95 transition-all">
-                        Seguir Loja
-                    </button>
+                    {isOwner ? (
+                        <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
+                            <Store className="w-4 h-4 text-[#f46a25]" />
+                            <span className="text-xs font-black text-white/50 uppercase tracking-wider">Você é o dono desta loja</span>
+                        </div>
+                    ) : (
+                        <button className="w-full bg-[#f46a25] text-white font-black py-3.5 rounded-2xl text-xs uppercase tracking-widest shadow-lg shadow-[#f46a25]/25 active:scale-95 transition-all">
+                            Seguir Loja
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -249,7 +356,6 @@ export default function StoreProfile({ username }: { username?: string }) {
             {/* ── Products Tab ── */}
             {activeTab === "products" && (
                 <div className="px-4 pt-2">
-                    {/* Search result count */}
                     {search && (
                         <p className="text-xs text-white/30 mb-3 font-medium">
                             {filteredProducts.length} resultado{filteredProducts.length !== 1 ? "s" : ""} para &quot;{search}&quot;
@@ -279,7 +385,6 @@ export default function StoreProfile({ username }: { username?: string }) {
                                         key={product.id}
                                         className="group flex flex-col bg-white/[0.04] border border-white/[0.06] rounded-2xl overflow-hidden hover:border-[#f46a25]/30 hover:bg-white/[0.07] transition-all active:scale-95"
                                     >
-                                        {/* Image */}
                                         <div className="relative aspect-square bg-black/30 overflow-hidden">
                                             {hasImage ? (
                                                 // eslint-disable-next-line @next/next/no-img-element
@@ -293,28 +398,21 @@ export default function StoreProfile({ username }: { username?: string }) {
                                                     <ShoppingBag className="w-8 h-8 text-white/10" />
                                                 </div>
                                             )}
-
-                                            {/* Discount badge */}
                                             {discount && (
                                                 <div className="absolute top-2 left-2 bg-[#f46a25] text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-lg">
                                                     -{discount}%
                                                 </div>
                                             )}
-
-                                            {/* Out of stock */}
                                             {product.stock === 0 && (
                                                 <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                                                     <span className="text-[10px] text-white/60 font-black uppercase tracking-wider">Esgotado</span>
                                                 </div>
                                             )}
                                         </div>
-
-                                        {/* Info */}
                                         <div className="p-3 flex flex-col flex-1">
                                             <h3 className="text-[11px] font-bold text-white/80 line-clamp-2 leading-snug mb-2 flex-1">
                                                 {product.name}
                                             </h3>
-
                                             <div className="mt-auto">
                                                 {product.avg_rating && product.avg_rating > 0 ? (
                                                     <div className="flex items-center gap-1 mb-1.5">
@@ -331,8 +429,6 @@ export default function StoreProfile({ username }: { username?: string }) {
                                                 <p className="text-[#f46a25] font-black text-base leading-tight">
                                                     R$ {product.price.toFixed(2)}
                                                 </p>
-
-                                                {/* Buy button */}
                                                 <div className={`mt-2 w-full py-2 rounded-xl text-[9px] font-black uppercase tracking-wider text-center transition-all
                                                     ${product.stock === 0
                                                         ? 'bg-white/5 text-white/20 cursor-not-allowed'
@@ -353,6 +449,11 @@ export default function StoreProfile({ username }: { username?: string }) {
             {/* ── Videos Tab ── */}
             {activeTab === "videos" && (
                 <div className="px-4 pt-2">
+                    {isOwner && videos.length > 0 && (
+                        <p className="text-[10px] text-white/25 font-bold uppercase tracking-widest mb-3 text-center">
+                            Toque no lixo para excluir um vídeo
+                        </p>
+                    )}
                     {videos.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-20 text-center">
                             <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
@@ -367,7 +468,7 @@ export default function StoreProfile({ username }: { username?: string }) {
                             {videos.map((vid) => (
                                 <div
                                     key={vid.id}
-                                    className="relative aspect-[9/16] rounded-2xl overflow-hidden group cursor-pointer border border-white/[0.06] bg-black/30"
+                                    className="relative aspect-[9/16] rounded-2xl overflow-hidden group border border-white/[0.06] bg-black/30"
                                 >
                                     <video
                                         src={vid.video_url}
@@ -397,11 +498,59 @@ export default function StoreProfile({ username }: { username?: string }) {
                                             {vid.description}
                                         </p>
                                     </div>
+
+                                    {/* ── Delete button — owner only ── */}
+                                    {isOwner && (
+                                        <div className="absolute top-2 right-2 z-10">
+                                            {confirmDeleteId === vid.id ? (
+                                                /* Confirmation mini-panel */
+                                                <div className="flex flex-col gap-1.5 items-end animate-in zoom-in duration-150">
+                                                    <div className="flex items-center gap-1 bg-black/80 backdrop-blur-md rounded-xl px-2 py-1.5 border border-red-500/30">
+                                                        <AlertTriangle className="w-3 h-3 text-red-400 shrink-0" />
+                                                        <span className="text-[9px] text-red-300 font-black">Excluir?</span>
+                                                    </div>
+                                                    <div className="flex gap-1">
+                                                        <button
+                                                            onClick={() => setConfirmDeleteId(null)}
+                                                            className="bg-black/70 backdrop-blur-md border border-white/20 text-white/60 text-[9px] font-black uppercase px-2.5 py-1.5 rounded-lg"
+                                                        >
+                                                            Não
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteVideo(vid.id)}
+                                                            disabled={deletingVideoId === vid.id}
+                                                            className="bg-red-500 text-white text-[9px] font-black uppercase px-2.5 py-1.5 rounded-lg flex items-center gap-1 disabled:opacity-50"
+                                                        >
+                                                            {deletingVideoId === vid.id
+                                                                ? <Loader2 className="w-3 h-3 animate-spin" />
+                                                                : <Trash2 className="w-3 h-3" />}
+                                                            Sim
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    onClick={() => setConfirmDeleteId(vid.id)}
+                                                    className="w-8 h-8 flex items-center justify-center bg-black/60 backdrop-blur-md border border-white/20 rounded-xl text-red-400 hover:bg-red-500/20 hover:border-red-500/40 transition-all"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
                     )}
                 </div>
+            )}
+
+            {/* ── Confirm Delete Overlay (click outside to close) ── */}
+            {confirmDeleteId && (
+                <div
+                    className="fixed inset-0 z-20"
+                    onClick={() => setConfirmDeleteId(null)}
+                />
             )}
         </div>
     );
