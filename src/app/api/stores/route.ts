@@ -42,7 +42,13 @@ export async function GET(request: NextRequest) {
             // Also get products and videos
             const store = storeRows[0];
             const [productsRes, videosRes] = await Promise.all([
-                query("SELECT * FROM products WHERE store_id = $1 ORDER BY created_at DESC", [store.id]),
+                query(
+                    `SELECT id, name, price, old_price, images, description, stock
+                     FROM products
+                     WHERE store_id = $1
+                     ORDER BY created_at DESC`,
+                    [store.id]
+                ),
                 query("SELECT * FROM videos WHERE store_id = $1 ORDER BY created_at DESC", [store.id]),
             ]);
 
