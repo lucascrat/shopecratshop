@@ -1,0 +1,21 @@
+{
+    "name": "Shopcrat",
+    "short_name": "Shopcrat",
+    "description": "TikTok-style video shopping platform",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#221610",
+    "theme_color": "#f46a25",
+    "icons": [
+        {
+            "src": "/icons/icon-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/icons/icon-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}
