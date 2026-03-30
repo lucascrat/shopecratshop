@@ -15,6 +15,7 @@ import {
     Settings,
     ChevronDown,
     Key,
+    AlertTriangle,
 } from "lucide-react";
 
 export default function AdminSettings() {
@@ -98,6 +99,46 @@ export default function AdminSettings() {
                         Salvar
                     </button>
                 </div>
+
+                {/* Maintenance Mode */}
+                <section className={`border rounded-2xl p-5 space-y-3 transition-all ${
+                    settings.maintenance_mode === "true"
+                        ? "bg-yellow-400/10 border-yellow-400/30"
+                        : "bg-white/5 border-white/5"
+                }`}>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                                settings.maintenance_mode === "true" ? "bg-yellow-400/20" : "bg-white/10"
+                            }`}>
+                                <AlertTriangle className={`w-5 h-5 ${settings.maintenance_mode === "true" ? "text-yellow-400" : "text-white/30"}`} />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-black uppercase tracking-tight">Modo Manutenção</h3>
+                                <p className="text-[9px] text-white/30 font-bold">
+                                    {settings.maintenance_mode === "true"
+                                        ? "App inacessível para usuários"
+                                        : "App funcionando normalmente"}
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => updateSetting("maintenance_mode", settings.maintenance_mode === "true" ? "false" : "true")}
+                            className={`w-12 h-6 rounded-full transition-all relative ${
+                                settings.maintenance_mode === "true" ? "bg-yellow-400" : "bg-white/10"
+                            }`}
+                        >
+                            <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-transform ${
+                                settings.maintenance_mode === "true" ? "translate-x-6" : "translate-x-0.5"
+                            }`} />
+                        </button>
+                    </div>
+                    {settings.maintenance_mode === "true" && (
+                        <p className="text-[9px] text-yellow-400/70 text-center font-bold bg-yellow-400/10 rounded-xl p-2">
+                            ⚠ O app está em manutenção. Lembre-se de salvar e desativar após concluir.
+                        </p>
+                    )}
+                </section>
 
                 {/* Platform Fee */}
                 <section className="bg-white/5 border border-white/5 rounded-2xl p-5 space-y-4">

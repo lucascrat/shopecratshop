@@ -17,22 +17,36 @@ const r2 = new S3Client({
 
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
-const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
+const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/webm"];
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 async function uploadToR2(buffer: Buffer, contentType: string, folder: string): Promise<string> {
-    const ext = contentType.split("/")[1] === "quicktime" ? "mov" : contentType.split("/")[1];
+    const publicUrl = process.env.NEXT_PUBLIC_R2_PUBLIC_URL;
+    const bucket = process.env.CLOUDFLARE_R2_BUCKET_NAME;
+
+    if (!publicUrl || publicUrl === "undefined") {
+        throw new Error("NEXT_PUBLIC_R2_PUBLIC_URL não está configurado no servidor");
+    }
+    if (!bucket) {
+        throw new Error("CLOUDFLARE_R2_BUCKET_NAME não está configurado no servidor");
+    }
+
+    const ext = contentType.split("/")[1];
     const fileName = `${folder}/${uuidv4()}.${ext}`;
 
+    console.log("[uploadToR2] Uploading to bucket:", bucket, "folder:", folder, "ext:", ext);
+
     const command = new PutObjectCommand({
-        Bucket: process.env.CLOUDFLARE_R2_BUCKET_NAME,
+        Bucket: bucket,
         Key: fileName,
         Body: buffer,
         ContentType: contentType,
     });
 
     await r2.send(command);
-    return `${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${fileName}`;
+    const url = `${publicUrl}/${fileName}`;
+    console.log("[uploadToR2] Stored URL:", url);
+    return url;
 }
 
 export async function POST(request: NextRequest) {

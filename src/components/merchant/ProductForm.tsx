@@ -12,7 +12,7 @@ import { toast } from "sonner";
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_IMAGES = 5;
-const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
+const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/webm"];
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 interface FormErrors {
@@ -68,6 +68,9 @@ export default function ProductForm() {
         if (!videoFile) {
             newErrors.video = "Vídeo é obrigatório";
         }
+        if (imageFiles.length === 0) {
+            newErrors.images = "Adicione pelo menos 1 foto do produto";
+        }
 
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -78,7 +81,7 @@ export default function ProductForm() {
         if (!file) return;
 
         if (!ALLOWED_VIDEO_TYPES.includes(file.type)) {
-            toast.error("Formato de vídeo inválido. Use MP4, MOV ou WebM.");
+            toast.error("Formato de vídeo inválido. Use MP4 ou WebM. Vídeos do iPhone devem ser convertidos para MP4.");
             return;
         }
         if (file.size > MAX_VIDEO_SIZE) {
@@ -201,10 +204,10 @@ export default function ProductForm() {
                                 <Video className="w-8 h-8" />
                             </div>
                             <p className="text-xs font-bold text-white/40">Adicionar Vídeo</p>
-                            <p className="text-[10px] text-white/20 mt-1">MP4, MOV (max 100MB)</p>
+                            <p className="text-[10px] text-white/20 mt-1">MP4 ou WebM (max 100MB)</p>
                         </>
                     )}
-                    <input ref={videoInputRef} type="file" accept="video/mp4,video/quicktime,video/webm" className="hidden" onChange={handleVideoChange} />
+                    <input ref={videoInputRef} type="file" accept="video/mp4,video/webm" className="hidden" onChange={handleVideoChange} />
                 </div>
 
                 {/* Image Grid Upload */}
@@ -214,7 +217,7 @@ export default function ProductForm() {
                         className="bg-white/5 rounded-2xl border-2 border-dashed border-white/10 flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 transition-all"
                     >
                         <ImageIcon className="text-white/20 w-8 h-8 mb-2" />
-                        <span className="text-[10px] font-bold text-white/40">Fotos ({imageFiles.length}/{MAX_IMAGES})</span>
+                        <span className="text-[10px] font-bold text-white/40">Fotos* ({imageFiles.length}/{MAX_IMAGES})</span>
                         <input ref={imageInputRef} type="file" multiple accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleImagesChange} />
                     </div>
 
@@ -235,6 +238,7 @@ export default function ProductForm() {
                 </div>
             </div>
             <FieldError message={errors.video} />
+            <FieldError message={errors.images} />
 
             {/* Product Details Card */}
             <div className="bg-white/5 rounded-2xl p-6 border border-white/10 space-y-4">

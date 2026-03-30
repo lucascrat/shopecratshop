@@ -1,6 +1,6 @@
 "use client";
 
-import { verifyToken } from "@/lib/auth";
+import { decodeToken } from "@/lib/auth";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -14,6 +14,8 @@ import {
     LogOut,
     Shield,
     Loader2,
+    Users,
+    Video,
 } from "lucide-react";
 
 const navItems = [
@@ -21,6 +23,8 @@ const navItems = [
     { label: "Pedidos", icon: ShoppingBag, href: "/admin/orders" },
     { label: "Lojistas", icon: Store, href: "/admin/merchants" },
     { label: "Saques", icon: ArrowDownToLine, href: "/admin/withdrawals" },
+    { label: "Usuários", icon: Users, href: "/admin/users" },
+    { label: "Vídeos", icon: Video, href: "/admin/videos" },
     { label: "Finanças", icon: DollarSign, href: "/admin/finances" },
     { label: "Config.", icon: Settings, href: "/admin/settings" },
 ];
@@ -41,8 +45,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }
 
         try {
-            const decoded = verifyToken(token);
-            if (decoded.role === "admin") {
+            const decoded = decodeToken(token);
+            if (decoded?.role === "admin") {
                 // Extract a display name from email or id
                 if (decoded.email) {
                     const name = decoded.email.split("@")[0];
@@ -108,8 +112,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </main>
 
             {/* Bottom Nav */}
-            <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-slate-950/95 backdrop-blur-xl border-t border-white/5 px-3 pt-2 pb-7 z-50">
-                <div className="flex justify-between items-center">
+            <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-slate-950/95 backdrop-blur-xl border-t border-white/5 pt-2 pb-7 z-50">
+                <div className="flex items-center overflow-x-auto no-scrollbar px-2 gap-1">
                     {navItems.map((item) => {
                         const Icon = item.icon;
                         const isActive = pathname === item.href ||
@@ -118,7 +122,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                             <Link
                                 key={item.href}
                                 href={item.href}
-                                className={`flex flex-col items-center gap-1 px-2 py-1 rounded-xl transition-all ${
+                                className={`flex flex-col items-center gap-1 px-2.5 py-1 rounded-xl transition-all shrink-0 ${
                                     isActive ? "text-primary" : "text-white/30 hover:text-white/60"
                                 }`}
                             >

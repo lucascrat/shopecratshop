@@ -27,6 +27,19 @@ export function verifyToken(token: string): AuthUser {
     return jwt.verify(token, JWT_SECRET) as AuthUser;
 }
 
+/**
+ * Decode token WITHOUT verifying signature.
+ * Use only on the client side where JWT_SECRET is unavailable.
+ * Server-side API routes always use verifyToken() for real security.
+ */
+export function decodeToken(token: string): AuthUser | null {
+    try {
+        return jwt.decode(token) as AuthUser | null;
+    } catch {
+        return null;
+    }
+}
+
 export function getUserFromRequest(request: NextRequest): AuthUser | null {
     const authHeader = request.headers.get("authorization");
     if (!authHeader?.startsWith("Bearer ")) return null;

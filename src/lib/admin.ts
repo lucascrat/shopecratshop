@@ -59,8 +59,19 @@ export async function getPlatformSetting(key: string): Promise<string | null> {
 }
 
 // Credit wallet when payment is confirmed (deducts platform fee)
+// Idempotent: safe to call multiple times for the same order — only credits once.
 export async function creditWallet(merchantId: string, orderId: string, amount: number) {
     const wallet = await ensureWallet(merchantId);
+
+    // Idempotency guard: bail out if this order was already credited
+    const existing = await query(
+        `SELECT id FROM wallet_transactions WHERE order_id = $1 AND type = 'credit'`,
+        [orderId]
+    );
+    if (existing.rows.length > 0) {
+        // Already credited — return without doing anything
+        return null;
+    }
 
     // Get platform fee percentage
     const feePercent = parseFloat(await getPlatformSetting("platform_fee_percent") || "3.00");
@@ -69,6 +80,16 @@ export async function creditWallet(merchantId: string, orderId: string, amount: 
 
     await query("BEGIN", []);
     try {
+        // Double-check inside the transaction (race condition guard)
+        const existingInTx = await query(
+            `SELECT id FROM wallet_transactions WHERE order_id = $1 AND type = 'credit'`,
+            [orderId]
+        );
+        if (existingInTx.rows.length > 0) {
+            await query("ROLLBACK", []);
+            return null;
+        }
+
         // Update wallet balance (merchant receives amount minus platform fee)
         await query(
             `UPDATE wallets SET

@@ -104,11 +104,15 @@ export default function VideoFeed() {
         );
     }
 
+    const handleVideoError = useCallback((videoId: string) => {
+        setVideos(prev => prev.filter(v => v.id !== videoId));
+    }, []);
+
     return (
         <div className="video-container h-screen overflow-y-scroll snap-y snap-mandatory bg-black">
             {videos.map((video) => (
                 <section key={video.id} className="snap-start h-screen">
-                    <VideoItem video={video} />
+                    <VideoItem video={video} onError={() => handleVideoError(video.id)} />
                 </section>
             ))}
 

@@ -11,6 +11,7 @@ import { toast } from "sonner";
 
 interface VideoItemProps {
     video: VideoFeedItem;
+    onError?: () => void;
 }
 
 interface CommentData {
@@ -20,7 +21,7 @@ interface CommentData {
     profile: { username: string; avatar_url: string } | null;
 }
 
-export default function VideoItem({ video }: VideoItemProps) {
+export default function VideoItem({ video, onError }: VideoItemProps) {
     const { user } = useAuth();
     const videoRef = useRef<HTMLVideoElement>(null);
     const [muted, setMuted] = useState(true);
@@ -190,6 +191,7 @@ export default function VideoItem({ video }: VideoItemProps) {
                 muted={muted}
                 onClick={togglePlay}
                 preload="metadata"
+                onError={() => onError?.()}
             />
 
             {/* Overlays */}
@@ -273,11 +275,18 @@ export default function VideoItem({ video }: VideoItemProps) {
                 <div className="absolute left-4 bottom-20 right-20 z-10 animate-in slide-in-from-left duration-500">
                     <div className="bg-black/50 backdrop-blur-xl border border-white/15 rounded-2xl p-3 flex items-center gap-3">
                         {/* Thumbnail */}
-                        <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-white/10 shrink-0 bg-black/40">
+                        <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-white/10 shrink-0 bg-black/40 flex items-center justify-center">
                             {video.product.image ? (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img src={video.product.image} alt={video.product.name} className="w-full h-full object-cover" />
-                            ) : null}
+                                <img
+                                    src={video.product.image}
+                                    alt={video.product.name}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                                />
+                            ) : (
+                                <Store className="w-7 h-7 text-white/20" />
+                            )}
                             {hasDiscount && (
                                 <div className="absolute top-0 left-0 bg-[#f46a25] text-white text-[8px] font-black px-1.5 py-0.5 rounded-br-lg leading-none">
                                     -{discountPct}%

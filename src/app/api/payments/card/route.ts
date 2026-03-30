@@ -43,6 +43,16 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Pedido já está pago" }, { status: 400 });
         }
 
+        // Extra guard: check if a credit already exists for this order (prevents
+        // re-processing if the client retries a request that already succeeded)
+        const existingCredit = await query(
+            `SELECT id FROM wallet_transactions WHERE order_id = $1 AND type = 'credit'`,
+            [orderId]
+        );
+        if (existingCredit.rows.length > 0) {
+            return NextResponse.json({ error: "Pagamento já processado para este pedido" }, { status: 400 });
+        }
+
         const amount = parseFloat(order.total);
         const numInstallments = installments || 1;
 

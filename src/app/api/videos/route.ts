@@ -19,12 +19,13 @@ export async function GET(request: NextRequest) {
 
         if (storeId) {
             videosQuery = `
-                SELECT v.id, v.store_id, v.product_id, v.video_url, v.description, v.created_at,
+                SELECT v.id, v.store_id, v.video_url, v.description, v.created_at,
                        s.name as store_name, s.logo_url as store_logo,
                        COALESCE(s.username, p.username) as store_username,
                        p.username as merchant_username, p.avatar_url as merchant_avatar,
                        pr.id as product_id, pr.name as product_name, pr.price as product_price,
-                       pr.old_price as product_old_price, pr.images as product_images, pr.category as product_category
+                       pr.old_price as product_old_price, pr.images as product_images, pr.category as product_category,
+                       v.product_id as video_product_id
                 FROM videos v
                 JOIN stores s ON v.store_id = s.id
                 JOIN profiles p ON s.merchant_id = p.id
@@ -36,12 +37,13 @@ export async function GET(request: NextRequest) {
             videosParams = [storeId, PAGE_SIZE + 1, offset];
         } else {
             videosQuery = `
-                SELECT v.id, v.store_id, v.product_id, v.video_url, v.description, v.created_at,
+                SELECT v.id, v.store_id, v.video_url, v.description, v.created_at,
                        s.name as store_name, s.logo_url as store_logo,
                        COALESCE(s.username, p.username) as store_username,
                        p.username as merchant_username, p.avatar_url as merchant_avatar,
                        pr.id as product_id, pr.name as product_name, pr.price as product_price,
-                       pr.old_price as product_old_price, pr.images as product_images, pr.category as product_category
+                       pr.old_price as product_old_price, pr.images as product_images, pr.category as product_category,
+                       v.product_id as video_product_id
                 FROM videos v
                 JOIN stores s ON v.store_id = s.id
                 JOIN profiles p ON s.merchant_id = p.id
@@ -102,12 +104,12 @@ export async function GET(request: NextRequest) {
                     avatar_url: v.merchant_avatar,
                 },
             },
-            products: v.product_id ? {
+            products: v.video_product_id && v.product_id ? {
                 id: v.product_id,
                 name: v.product_name,
                 price: v.product_price,
                 old_price: v.product_old_price,
-                images: v.product_images || [],
+                images: Array.isArray(v.product_images) ? v.product_images : (v.product_images ? JSON.parse(v.product_images) : []),
                 category: v.product_category,
             } : null,
             likes_count: likesMap[v.id] || 0,

@@ -45,22 +45,27 @@ export async function GET(request: NextRequest) {
 
         const pixStatus = await checkPixPayment(tx.efi_txid);
 
-        if (pixStatus.paid && tx.status !== "paid") {
-            // Update payment transaction
-            await query(
-                `UPDATE payment_transactions SET status = 'paid', paid_at = NOW(), updated_at = NOW()
-                WHERE id = $1`,
+        if (pixStatus.paid) {
+            // Atomic update: only the first caller that transitions status to 'paid' will get rows back.
+            // If the webhook or another concurrent poll already handled this, rows will be empty.
+            const updateResult = await query(
+                `UPDATE payment_transactions
+                 SET status = 'paid', paid_at = NOW(), updated_at = NOW()
+                 WHERE id = $1 AND status != 'paid'
+                 RETURNING id`,
                 [tx.id]
             );
 
-            // Update order
-            await query(
-                "UPDATE orders SET payment_status = 'paid', status = 'confirmed' WHERE id = $1",
-                [orderId]
-            );
+            if (updateResult.rows.length > 0) {
+                // This caller "won" — confirm the order and credit the merchant
+                await query(
+                    "UPDATE orders SET payment_status = 'paid', status = 'confirmed' WHERE id = $1",
+                    [orderId]
+                );
 
-            // Credit merchant wallet
-            await creditWallet(tx.merchant_id, orderId, parseFloat(tx.total));
+                // creditWallet is idempotent, but only one call will actually credit
+                await creditWallet(tx.merchant_id, orderId, parseFloat(tx.total));
+            }
 
             return NextResponse.json({ paid: true, status: "paid" });
         }

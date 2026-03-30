@@ -29,12 +29,19 @@ export async function POST(request: NextRequest) {
 
             const tx = txResult.rows[0];
 
-            // Mark as paid
-            await query(
-                `UPDATE payment_transactions SET status = 'paid', paid_at = NOW(), updated_at = NOW()
-                WHERE id = $1`,
+            // Atomic update — only one handler (webhook or status poll) can win this transition
+            const updateResult = await query(
+                `UPDATE payment_transactions
+                 SET status = 'paid', paid_at = NOW(), updated_at = NOW()
+                 WHERE id = $1 AND status != 'paid'
+                 RETURNING id`,
                 [tx.id]
             );
+
+            if (updateResult.rows.length === 0) {
+                // Already processed by a concurrent status poll — skip
+                continue;
+            }
 
             // Update order
             await query(
@@ -42,7 +49,7 @@ export async function POST(request: NextRequest) {
                 [tx.order_id]
             );
 
-            // Credit merchant wallet
+            // creditWallet is idempotent — safe even if status poll fires at same moment
             await creditWallet(tx.merchant_id, tx.order_id, parseFloat(tx.total));
 
             console.log(`[Webhook] PIX payment confirmed: txid=${txid}, order=${tx.order_id}`);

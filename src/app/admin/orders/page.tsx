@@ -14,6 +14,7 @@ import {
     Filter,
     ChevronDown,
     DollarSign,
+    Search,
 } from "lucide-react";
 
 const statusOptions = [
@@ -44,6 +45,7 @@ export default function AdminOrders() {
     const [orders, setOrders] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState("all");
+    const [search, setSearch] = useState("");
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [total, setTotal] = useState(0);
@@ -53,7 +55,7 @@ export default function AdminOrders() {
     const fetchOrders = async () => {
         setLoading(true);
         try {
-            const res = await apiFetch<any>(`/api/admin/orders?status=${filter}&page=${page}`);
+            const res = await apiFetch<any>(`/api/admin/orders?status=${filter}&page=${page}&search=${encodeURIComponent(search)}`);
             setOrders(res.orders);
             setTotalPages(res.totalPages);
             setTotal(res.total);
@@ -64,7 +66,7 @@ export default function AdminOrders() {
         }
     };
 
-    useEffect(() => { fetchOrders(); }, [filter, page]);
+    useEffect(() => { fetchOrders(); }, [filter, page, search]);
 
     const updateOrder = async (orderId: string, updates: any) => {
         setUpdating(orderId);
@@ -90,6 +92,18 @@ export default function AdminOrders() {
                     <p className="text-[10px] font-bold text-white/30 uppercase tracking-[0.2em] mt-1">
                         {total} pedido(s) no total
                     </p>
+                </div>
+
+                {/* Search */}
+                <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+                    <input
+                        type="text"
+                        placeholder="Buscar cliente, produto ou loja..."
+                        value={search}
+                        onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                        className="w-full bg-white/5 border border-white/10 rounded-2xl pl-11 pr-4 py-3 text-sm placeholder:text-white/20 focus:outline-none focus:border-primary/50"
+                    />
                 </div>
 
                 {/* Filter Tabs */}
