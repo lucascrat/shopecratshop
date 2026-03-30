@@ -171,6 +171,13 @@ export default function VideoItem({ video }: VideoItemProps) {
         return n.toString();
     };
 
+    // Discount calculation — computed before JSX to avoid IIFE in render
+    const hasProduct   = !!video.product.id;
+    const productPrice = typeof video.product.price === "number" ? video.product.price : parseFloat(String(video.product.price || 0));
+    const oldPrice     = video.product.oldPrice ? (typeof video.product.oldPrice === "number" ? video.product.oldPrice : parseFloat(String(video.product.oldPrice))) : undefined;
+    const hasDiscount  = !!(oldPrice && oldPrice > productPrice);
+    const discountPct  = hasDiscount ? Math.round((1 - productPrice / oldPrice!) * 100) : 0;
+
     return (
         <div className="relative h-full w-full bg-black">
             {/* Video Element */}
@@ -262,66 +269,56 @@ export default function VideoItem({ video }: VideoItemProps) {
             </div>
 
             {/* Floating Product Card */}
-            {video.product.id && (() => {
-                const hasDiscount = !!(video.product.oldPrice && video.product.oldPrice > video.product.price);
-                const discountPct = hasDiscount
-                    ? Math.round((1 - video.product.price / video.product.oldPrice!) * 100)
-                    : 0;
-                return (
-                    <div className="absolute left-4 bottom-20 right-20 z-10 animate-in slide-in-from-left duration-500">
-                        <div className="bg-black/50 backdrop-blur-xl border border-white/15 rounded-2xl p-3 flex items-center gap-3">
-                            {/* Thumbnail */}
-                            <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-white/10 shrink-0 bg-black/40">
-                                {video.product.image && (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={video.product.image} alt={video.product.name} className="w-full h-full object-cover" />
-                                )}
-                                {/* Discount badge on image */}
-                                {hasDiscount && (
-                                    <div className="absolute top-0 left-0 bg-[#f46a25] text-white text-[8px] font-black px-1.5 py-0.5 rounded-br-lg leading-none">
-                                        -{discountPct}%
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Info */}
-                            <div className="flex-1 min-w-0">
-                                <h4 className="text-white text-[11px] font-bold truncate leading-tight">{video.product.name}</h4>
-
-                                {hasDiscount ? (
-                                    <div className="mt-1 flex flex-col gap-0">
-                                        {/* Original price — crossed out */}
-                                        <span className="text-white/40 text-[10px] line-through leading-none">
-                                            R$ {video.product.oldPrice!.toFixed(2)}
-                                        </span>
-                                        {/* Promo price */}
-                                        <div className="flex items-center gap-1.5 mt-0.5">
-                                            <span className="text-[#f46a25] font-black text-base leading-none">
-                                                R$ {video.product.price.toFixed(2)}
-                                            </span>
-                                            <span className="bg-[#f46a25]/20 text-[#f46a25] text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide">
-                                                Promoção
-                                            </span>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <span className="text-[#f46a25] font-black text-sm mt-1 block">
-                                        R$ {video.product.price.toFixed(2)}
-                                    </span>
-                                )}
-                            </div>
-
-                            {/* CTA */}
-                            <Link
-                                href={`/checkout?id=${video.product.id}`}
-                                className="bg-[#f46a25] hover:bg-[#f46a25]/90 text-white px-3 py-2.5 rounded-xl text-[10px] font-black transition-all active:scale-95 whitespace-nowrap uppercase tracking-wide shadow-lg shadow-[#f46a25]/30"
-                            >
-                                Comprar
-                            </Link>
+            {hasProduct && (
+                <div className="absolute left-4 bottom-20 right-20 z-10 animate-in slide-in-from-left duration-500">
+                    <div className="bg-black/50 backdrop-blur-xl border border-white/15 rounded-2xl p-3 flex items-center gap-3">
+                        {/* Thumbnail */}
+                        <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-white/10 shrink-0 bg-black/40">
+                            {video.product.image ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={video.product.image} alt={video.product.name} className="w-full h-full object-cover" />
+                            ) : null}
+                            {hasDiscount && (
+                                <div className="absolute top-0 left-0 bg-[#f46a25] text-white text-[8px] font-black px-1.5 py-0.5 rounded-br-lg leading-none">
+                                    -{discountPct}%
+                                </div>
+                            )}
                         </div>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                            <h4 className="text-white text-[11px] font-bold truncate leading-tight">{video.product.name}</h4>
+                            {hasDiscount ? (
+                                <div className="mt-1 flex flex-col gap-0">
+                                    <span className="text-white/40 text-[10px] line-through leading-none">
+                                        R$ {oldPrice!.toFixed(2)}
+                                    </span>
+                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                        <span className="text-[#f46a25] font-black text-base leading-none">
+                                            R$ {productPrice.toFixed(2)}
+                                        </span>
+                                        <span className="bg-[#f46a25]/20 text-[#f46a25] text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide">
+                                            Promoção
+                                        </span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <span className="text-[#f46a25] font-black text-sm mt-1 block">
+                                    R$ {productPrice.toFixed(2)}
+                                </span>
+                            )}
+                        </div>
+
+                        {/* CTA */}
+                        <Link
+                            href={`/checkout?id=${video.product.id}`}
+                            className="bg-[#f46a25] hover:bg-[#f46a25]/90 text-white px-3 py-2.5 rounded-xl text-[10px] font-black transition-all active:scale-95 whitespace-nowrap uppercase tracking-wide shadow-lg shadow-[#f46a25]/30"
+                        >
+                            Comprar
+                        </Link>
                     </div>
-                );
-            })()}
+                </div>
+            )}
 
             {/* Comments Drawer */}
             {showComments && (
