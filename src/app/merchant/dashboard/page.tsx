@@ -349,10 +349,10 @@ export default function MerchantDashboard() {
                     <Video className="w-6 h-6" />
                     <span className="text-[9px] font-black uppercase tracking-widest">Feed</span>
                 </Link>
-                <div className="flex flex-col items-center gap-1.5 text-white/20 hover:text-white transition-colors cursor-pointer">
+                <Link href="/merchant/analytics" className="flex flex-col items-center gap-1.5 text-white/20 hover:text-white transition-colors">
                     <BarChart3 className="w-6 h-6" />
                     <span className="text-[9px] font-black uppercase tracking-widest">Analítico</span>
-                </div>
+                </Link>
             </nav>
 
             {/* Edit Store Profile Sheet */}

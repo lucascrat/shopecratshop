@@ -58,6 +58,10 @@ export default function StoreProfile({ username }: { username?: string }) {
     const [uploadingBanner, setUploadingBanner] = useState(false);
     const bannerInputRef = useRef<HTMLInputElement>(null);
 
+    // Follow state
+    const [isFollowing, setIsFollowing]     = useState(false);
+    const [loadingFollow, setLoadingFollow] = useState(false);
+
     const router = useRouter();
     const { user } = useAuth();
 
@@ -84,6 +88,41 @@ export default function StoreProfile({ username }: { username?: string }) {
         }
         fetchStoreData();
     }, [username]);
+
+    // Check follow status when store loads and user is logged in
+    useEffect(() => {
+        if (!store || !user) return;
+        apiFetch<{ following: boolean }>(`/api/follows?storeId=${store.id}`)
+            .then((res) => setIsFollowing(res.following))
+            .catch(() => {});
+    }, [store?.id, user?.id]);
+
+    async function handleFollowToggle() {
+        if (!user) {
+            router.push("/login");
+            return;
+        }
+        if (!store) return;
+        setLoadingFollow(true);
+        try {
+            if (isFollowing) {
+                await apiFetch(`/api/follows?storeId=${store.id}`, { method: "DELETE" });
+                setIsFollowing(false);
+                toast.success("Loja removida dos seguidos");
+            } else {
+                await apiFetch("/api/follows", {
+                    method: "POST",
+                    body: JSON.stringify({ storeId: store.id }),
+                });
+                setIsFollowing(true);
+                toast.success(`Agora você segue ${store.name}!`);
+            }
+        } catch (err: any) {
+            toast.error(err.message || "Erro ao seguir loja");
+        } finally {
+            setLoadingFollow(false);
+        }
+    }
 
     const isOwner = !!(user && store && user.id === store.merchant_id);
 
@@ -129,10 +168,11 @@ export default function StoreProfile({ username }: { username?: string }) {
         setUploadingBanner(true);
         try {
             const formData = new FormData();
+            formData.append("action", "upload-file");
             formData.append("file", file);
-            formData.append("type", "image");
+            formData.append("folder", "banners");
 
-            const token = localStorage.getItem("auth_token");
+            const token = localStorage.getItem("token");
             const res = await fetch("/api/upload", {
                 method: "POST",
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -326,8 +366,19 @@ export default function StoreProfile({ username }: { username?: string }) {
                             <span className="text-xs font-black text-white/50 uppercase tracking-wider">Você é o dono desta loja</span>
                         </div>
                     ) : (
-                        <button className="w-full bg-[#f46a25] text-white font-black py-3.5 rounded-2xl text-xs uppercase tracking-widest shadow-lg shadow-[#f46a25]/25 active:scale-95 transition-all">
-                            Seguir Loja
+                        <button
+                            onClick={handleFollowToggle}
+                            disabled={loadingFollow}
+                            className={`w-full font-black py-3.5 rounded-2xl text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-60 ${
+                                isFollowing
+                                    ? "bg-white/10 border border-[#f46a25]/40 text-[#f46a25] shadow-none"
+                                    : "bg-[#f46a25] text-white shadow-[#f46a25]/25"
+                            }`}
+                        >
+                            {loadingFollow
+                                ? <Loader2 className="w-4 h-4 animate-spin" />
+                                : isFollowing ? "✓ Seguindo" : "Seguir Loja"
+                            }
                         </button>
                     )}
                 </div>

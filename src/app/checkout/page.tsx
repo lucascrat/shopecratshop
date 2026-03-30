@@ -151,7 +151,7 @@ function CheckoutContent() {
             } else if (paymentMethod === "card") {
                 // Card will be handled via Efi tokenization (redirect to success for now)
                 toast.success("Pedido realizado! Pagamento via cartão em processamento.");
-                router.push("/order-success");
+                router.push(`/order-success?orderId=${newOrderId}`);
             } else {
                 // pay_on_delivery or store_pickup — order created, no immediate payment
                 toast.success(
@@ -159,7 +159,7 @@ function CheckoutContent() {
                         ? "Pedido realizado! A maquininha será enviada ao seu endereço."
                         : "Pedido realizado! Retire na loja."
                 );
-                router.push("/order-success");
+                router.push(`/order-success?orderId=${newOrderId}`);
             }
         } catch (err: any) {
             console.error("Order error:", err);
@@ -210,7 +210,7 @@ function CheckoutContent() {
                     if (pixPollRef.current) clearInterval(pixPollRef.current);
                     setCheckingPix(false);
                     toast.success("Pagamento PIX confirmado!");
-                    router.push("/order-success");
+                    router.push(`/order-success?orderId=${oid}`);
                 }
             } catch {
                 // ignore polling errors

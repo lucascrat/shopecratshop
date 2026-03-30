@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
     ChevronLeft, User, Bell, Shield, Wallet, CircleHelp, Info,
     Languages, Moon, Trash2, LogOut, ChevronRight, AtSign,
@@ -19,6 +19,44 @@ export default function SettingsPage() {
     const [editingName, setEditingName] = useState(false);
     const [newName, setNewName] = useState("");
     const [savingName, setSavingName] = useState(false);
+    const [uploadingAvatar, setUploadingAvatar] = useState(false);
+    const avatarInputRef = useRef<HTMLInputElement>(null);
+
+    async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploadingAvatar(true);
+        try {
+            const form = new FormData();
+            form.append("action", "upload-file");
+            form.append("file", file);
+            form.append("folder", "avatars");
+
+            const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+            const res = await fetch("/api/upload", {
+                method: "POST",
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                body: form,
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Erro no upload");
+
+            await apiFetch("/api/profile/update", {
+                method: "PATCH",
+                body: JSON.stringify({ avatar_url: data.url }),
+            });
+            if (refreshProfile) await refreshProfile();
+            toast.success("Foto de perfil atualizada!");
+        } catch (err: any) {
+            toast.error(err.message || "Erro ao atualizar foto");
+        } finally {
+            setUploadingAvatar(false);
+            // Reset input so the same file can be selected again
+            if (avatarInputRef.current) avatarInputRef.current.value = "";
+        }
+    }
 
     async function handleSaveUsername(newUsername: string) {
         await apiFetch("/api/profile/update", {
@@ -95,9 +133,23 @@ export default function SettingsPage() {
                                     </div>
                                 )}
                             </div>
-                            <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-[#f46a25] rounded-lg flex items-center justify-center border-2 border-[#0d0d0d]">
-                                <Camera className="w-3 h-3 text-white" />
-                            </div>
+                            <button
+                                onClick={() => avatarInputRef.current?.click()}
+                                disabled={uploadingAvatar}
+                                className="absolute -bottom-1 -right-1 w-6 h-6 bg-[#f46a25] rounded-lg flex items-center justify-center border-2 border-[#0d0d0d] hover:bg-[#f46a25]/80 transition-colors disabled:opacity-60"
+                            >
+                                {uploadingAvatar
+                                    ? <Loader2 className="w-3 h-3 text-white animate-spin" />
+                                    : <Camera className="w-3 h-3 text-white" />
+                                }
+                            </button>
+                            <input
+                                ref={avatarInputRef}
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                className="hidden"
+                                onChange={handleAvatarChange}
+                            />
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="font-black text-base truncate">{profile?.full_name || "Usuário"}</p>
