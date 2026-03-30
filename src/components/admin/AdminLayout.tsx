@@ -1,8 +1,8 @@
 "use client";
 
-import { useAuth } from "@/components/AuthProvider";
+import { verifyToken } from "@/lib/auth";
 import { useRouter, usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
     LayoutDashboard,
@@ -14,7 +14,6 @@ import {
     LogOut,
     Shield,
     Loader2,
-    ChevronRight,
 } from "lucide-react";
 
 const navItems = [
@@ -27,17 +26,40 @@ const navItems = [
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-    const { user, profile, loading, signOut } = useAuth();
+    const [isAuthed, setIsAuthed] = useState(false);
+    const [checking, setChecking] = useState(true);
+    const [adminName, setAdminName] = useState("Holanda");
     const router = useRouter();
     const pathname = usePathname();
 
     useEffect(() => {
-        if (!loading && (!user || user.role !== "admin")) {
-            router.push("/login");
+        const token = localStorage.getItem("admin_token");
+        if (!token) {
+            router.push("/admin/login");
+            setChecking(false);
+            return;
         }
-    }, [user, loading, router]);
 
-    if (loading) {
+        try {
+            const decoded = verifyToken(token);
+            if (decoded.role === "admin") {
+                // Extract a display name from email or id
+                if (decoded.email) {
+                    const name = decoded.email.split("@")[0];
+                    setAdminName(name.charAt(0).toUpperCase() + name.slice(1));
+                }
+                setIsAuthed(true);
+            } else {
+                router.push("/admin/login");
+            }
+        } catch {
+            router.push("/admin/login");
+        }
+
+        setChecking(false);
+    }, [router]);
+
+    if (checking) {
         return (
             <div className="min-h-screen bg-slate-950 flex items-center justify-center">
                 <Loader2 className="w-10 h-10 text-primary animate-spin" />
@@ -45,8 +67,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         );
     }
 
-    if (!user || user.role !== "admin") {
+    if (!isAuthed) {
         return null;
+    }
+
+    function handleLogout() {
+        localStorage.removeItem("admin_token");
+        localStorage.removeItem("token");
+        router.push("/admin/login");
     }
 
     return (
@@ -61,12 +89,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         <div>
                             <h1 className="text-sm font-black uppercase tracking-tight">Admin Panel</h1>
                             <p className="text-[9px] font-bold text-white/30 uppercase tracking-[0.2em]">
-                                {profile?.full_name || "Administrador"}
+                                {adminName}
                             </p>
                         </div>
                     </div>
                     <button
-                        onClick={() => { signOut(); router.push("/login"); }}
+                        onClick={handleLogout}
                         className="p-2 text-white/30 hover:text-red-400 transition-colors"
                     >
                         <LogOut className="w-5 h-5" />
