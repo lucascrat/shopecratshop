@@ -47,10 +47,8 @@ function getCertificatePath(): string | undefined {
     const certBase64 = process.env.EFI_CERTIFICATE_BASE64;
     if (certBase64) {
         const tmpPath = path.join(os.tmpdir(), "efi_cert.p12");
-        // Only write if not already written this process
-        if (!fs.existsSync(tmpPath)) {
-            fs.writeFileSync(tmpPath, Buffer.from(certBase64, "base64"));
-        }
+        // Always rewrite — ensures env var changes take effect without restart
+        fs.writeFileSync(tmpPath, Buffer.from(certBase64, "base64"));
         return tmpPath;
     }
 
@@ -78,6 +76,28 @@ async function getEfiInstance() {
     const EfiPay = (await import("sdk-node-apis-efi")).default;
 
     const certPath = getCertificatePath();
+
+    // Validate certificate before passing to SDK
+    if (certPath) {
+        const fs2 = await import("fs");
+        const tls  = await import("tls");
+        if (!fs2.existsSync(certPath)) {
+            throw new Error(`Certificado Efi não encontrado em: ${certPath}`);
+        }
+        try {
+            const certBuf = fs2.readFileSync(certPath);
+            tls.createSecureContext({ pfx: certBuf, passphrase: "" });
+        } catch (tlsErr: any) {
+            // Certificate is invalid — remove cached temp file so it gets rewritten next time
+            const os2 = await import("os");
+            const path2 = await import("path");
+            const tmpPath = path2.join(os2.tmpdir(), "efi_cert.p12");
+            if (fs2.existsSync(tmpPath)) fs2.unlinkSync(tmpPath);
+            throw new Error(
+                `Certificado Efi inválido (${tlsErr.message}). Reenvie o arquivo .p12 correto via EFI_CERTIFICATE_BASE64.`
+            );
+        }
+    }
 
     const options: any = {
         client_id:     creds.clientId,
@@ -134,14 +154,23 @@ export async function createPixCharge(
             ],
         };
 
-        if (customerName) {
+        // Only include devedor when BOTH name AND CPF/CNPJ are available.
+        // The Efi API requires cpf or cnpj when devedor is present — sending
+        // only nome causes "not enough data" error.
+        const cpfClean = customerCpf ? customerCpf.replace(/\D/g, "") : "";
+        if (customerName && cpfClean.length >= 11) {
             chargeBody.devedor = {
                 nome: customerName,
-                ...(customerCpf ? { cpf: customerCpf.replace(/\D/g, "") } : {}),
+                cpf: cpfClean.substring(0, 11),
             };
         }
 
+        console.log("[Efi PIX] txid:", txid, "| chave:", creds.pixKey, "| valor:", amount.toFixed(2));
+
         const charge = await efipay.pixCreateImmediateCharge({ txid }, chargeBody);
+
+        console.log("[Efi PIX] charge criado:", charge.txid, "| loc.id:", charge.loc?.id);
+
         const qrcode = await efipay.pixGenerateQRCode({ id: charge.loc.id });
 
         return {
@@ -154,10 +183,14 @@ export async function createPixCharge(
             amount,
         };
     } catch (error: any) {
-        console.error("Efi PIX charge error:", error?.response?.data || error.message);
-        throw new Error(
-            `Erro ao criar cobrança PIX: ${error?.response?.data?.mensagem || error.message}`
-        );
+        const efiError = error?.response?.data;
+        console.error("[Efi PIX] Erro completo:", JSON.stringify(efiError || error.message));
+        // Build a clear message: prefer Efi API mensagem, fallback to raw error
+        const msg = efiError?.mensagem
+            || efiError?.message
+            || (typeof efiError === "string" ? efiError : null)
+            || error.message;
+        throw new Error(`Erro ao criar cobrança PIX: ${msg}`);
     }
 }
 
