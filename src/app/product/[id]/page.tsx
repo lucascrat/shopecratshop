@@ -58,6 +58,9 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     const [selectedColor, setSelectedColor] = useState<string | null>(null);
     const [selectedSize, setSelectedSize] = useState<string | null>(null);
     const [qty, setQty] = useState(1);
+    // ── Urgency / scarcity state ──
+    const [timeLeft, setTimeLeft] = useState(0);
+    const [viewing, setViewing] = useState(() => Math.floor(Math.random() * 18) + 7);
     const [liked, setLiked] = useState(false);
     const [showReviewForm, setShowReviewForm] = useState(false);
     const [newRating, setNewRating] = useState(5);
@@ -108,6 +111,33 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
         }
         load();
     }, [id]);
+
+    // ── Countdown timer (resets every session) ──
+    useEffect(() => {
+        if (!id) return;
+        const key = `offer_timer_${id}`;
+        const stored = sessionStorage.getItem(key);
+        const initial = stored ? parseInt(stored) : Math.floor(Math.random() * 420) + 480; // 8–15 min
+        setTimeLeft(initial > 0 ? initial : 600);
+        const iv = setInterval(() => {
+            setTimeLeft(prev => {
+                const next = prev <= 1 ? 600 : prev - 1;
+                sessionStorage.setItem(key, String(next));
+                return next;
+            });
+        }, 1000);
+        return () => clearInterval(iv);
+    }, [id]);
+
+    // ── Viewers counter (fluctuates realistically) ──
+    useEffect(() => {
+        const iv = setInterval(() => {
+            setViewing(v => Math.max(3, v + (Math.random() > 0.5 ? 1 : -1)));
+        }, 4000);
+        return () => clearInterval(iv);
+    }, []);
+
+    const formatTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
     // Sync carousel scroll → activeImage dot
     const handleCarouselScroll = useCallback(() => {
@@ -207,6 +237,20 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
     return (
         <div className="bg-[#0d0d0d] min-h-screen text-white pb-32 max-w-[430px] mx-auto">
+        <style>{`
+            @keyframes fire-flicker {
+                0%,100% { transform: scale(1) rotate(-3deg); filter: brightness(1); }
+                20%     { transform: scale(1.15) rotate(3deg); filter: brightness(1.3); }
+                40%     { transform: scale(0.92) rotate(-2deg); filter: brightness(0.9); }
+                60%     { transform: scale(1.1) rotate(2deg); filter: brightness(1.2); }
+                80%     { transform: scale(0.95) rotate(-1deg); filter: brightness(1); }
+            }
+            .fire-icon { animation: fire-flicker 0.8s ease-in-out infinite; display:inline-block; transform-origin: bottom center; }
+            @keyframes digit-pop {
+                0%,100% { transform: scale(1); }
+                50%     { transform: scale(1.15); }
+            }
+        `}</style>
 
             {/* ── Header ── */}
             <div className="sticky top-0 z-40 bg-[#0d0d0d]/90 backdrop-blur-xl border-b border-white/5 flex items-center justify-between px-4 py-3">
@@ -257,7 +301,12 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
 
                 {/* Discount badge */}
                 {discount && (
-                    <div className="absolute top-3 left-3 bg-[#f46a25] text-white text-xs font-black px-3 py-1 rounded-full shadow-lg pointer-events-none">
+                    <div className={`absolute top-3 left-3 text-white text-xs font-black px-3 py-1.5 rounded-full shadow-lg pointer-events-none flex items-center gap-1 ${
+                        discount >= 30
+                            ? "bg-gradient-to-r from-red-600 to-orange-500 shadow-orange-500/40 shadow-lg"
+                            : "bg-[#f46a25]"
+                    }`}>
+                        {discount >= 30 && <span className="fire-icon text-sm">🔥</span>}
                         -{discount}%
                     </div>
                 )}
@@ -365,6 +414,87 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                         </div>
                     )}
                 </div>
+
+                {/* ── URGENCY BLOCK ── */}
+
+                {/* Countdown timer — shown only when discount exists */}
+                {discount && timeLeft > 0 && (
+                    <div className="relative overflow-hidden rounded-2xl mb-4 border border-red-500/30"
+                        style={{ background: "linear-gradient(135deg, rgba(220,38,38,0.15) 0%, rgba(234,88,12,0.15) 100%)" }}>
+                        {/* animated left bar */}
+                        <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl bg-gradient-to-b from-red-500 to-orange-500 animate-pulse" />
+                        <div className="flex items-center gap-3 px-4 py-3 pl-5">
+                            {/* fire icon with flicker */}
+                            <span className="text-2xl fire-icon shrink-0">🔥</span>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[11px] font-black text-red-400 uppercase tracking-widest leading-none mb-0.5">Oferta relâmpago!</p>
+                                <p className="text-[10px] text-white/40 leading-none">Preço especial acaba em</p>
+                            </div>
+                            {/* countdown digits */}
+                            <div className="flex items-center gap-1 shrink-0">
+                                {formatTime(timeLeft).split("").map((ch, i) => (
+                                    ch === ":" ? (
+                                        <span key={i} className="text-red-400 font-black text-lg leading-none mx-0.5 animate-pulse">:</span>
+                                    ) : (
+                                        <div key={i} className="w-7 h-9 bg-black/60 border border-red-500/40 rounded-lg flex items-center justify-center">
+                                            <span className="text-red-400 font-black text-base tabular-nums leading-none">{ch}</span>
+                                        </div>
+                                    )
+                                ))}
+                            </div>
+                        </div>
+                        {/* progress bar draining */}
+                        <div className="h-0.5 bg-white/5">
+                            <div
+                                className="h-full bg-gradient-to-r from-red-500 to-orange-500 transition-all duration-1000"
+                                style={{ width: `${Math.min(100, (timeLeft / 900) * 100)}%` }}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {/* Social proof — viewers */}
+                <div className="flex items-center gap-2 mb-4">
+                    <div className="flex -space-x-1.5">
+                        {["from-orange-400 to-pink-500", "from-blue-400 to-purple-500", "from-green-400 to-teal-500"].map((g, i) => (
+                            <div key={i} className={`w-5 h-5 rounded-full bg-gradient-to-br ${g} border-2 border-[#0d0d0d]`} />
+                        ))}
+                    </div>
+                    <p className="text-[11px] text-white/40 flex-1">
+                        <span className="text-white font-black">{viewing}</span> pessoas estão vendo agora
+                    </p>
+                    <div className="flex items-center gap-1">
+                        <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+                        <span className="text-[10px] text-green-400 font-black">AO VIVO</span>
+                    </div>
+                </div>
+
+                {/* Scarcity bar */}
+                {product.stock > 0 && product.stock <= 20 && (
+                    <div className="mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-white/30">Disponibilidade</span>
+                            <span className={`text-[11px] font-black flex items-center gap-1 ${
+                                product.stock === 1 ? "text-red-400" :
+                                product.stock <= 3 ? "text-orange-400" : "text-yellow-400"
+                            }`}>
+                                {product.stock === 1 ? "🔥 ÚLTIMA UNIDADE!" :
+                                 product.stock <= 3 ? `⚡ Apenas ${product.stock} restam!` :
+                                 `🚨 Restam ${product.stock} unidades`}
+                            </span>
+                        </div>
+                        <div className="h-2 bg-white/5 rounded-full overflow-hidden border border-white/5">
+                            <div
+                                className={`h-full rounded-full transition-all duration-700 ${
+                                    product.stock === 1 ? "animate-pulse bg-gradient-to-r from-red-600 to-red-400" :
+                                    product.stock <= 3 ? "bg-gradient-to-r from-orange-600 to-orange-400" :
+                                    "bg-gradient-to-r from-yellow-600 to-yellow-400"
+                                }`}
+                                style={{ width: `${Math.min(100, (product.stock / 20) * 100)}%` }}
+                            />
+                        </div>
+                    </div>
+                )}
 
                 {/* Payment hint */}
                 <div className="bg-green-500/10 border border-green-500/20 rounded-xl px-3 py-2 mb-4 flex items-center gap-2">
