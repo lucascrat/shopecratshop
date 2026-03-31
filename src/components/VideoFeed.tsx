@@ -41,6 +41,10 @@ export default function VideoFeed() {
         }
     }, [user?.id]);
 
+    const handleVideoError = useCallback((videoId: string) => {
+        setVideos(prev => prev.filter(v => v.id !== videoId));
+    }, []);
+
     // Initial load
     useEffect(() => {
         pageRef.current = 0;
@@ -79,7 +83,7 @@ export default function VideoFeed() {
                 <p className="text-red-400 mb-4">{error}</p>
                 <button
                     onClick={() => { pageRef.current = 0; loadVideos(0); }}
-                    className="bg-primary px-8 py-3 rounded-xl font-bold"
+                    className="bg-primary px-8 py-3 rounded-xl font-bold transition-all active:scale-95"
                 >
                     Tentar Novamente
                 </button>
@@ -97,16 +101,12 @@ export default function VideoFeed() {
                 </div>
                 <h2 className="text-xl font-bold mb-2">Nenhum vídeo ainda</h2>
                 <p className="text-white/40 text-sm mb-8">Seja o primeiro a carregar um vídeo de produto e comece a vender!</p>
-                <Link href="/merchant/add-product" className="bg-primary px-8 py-3 rounded-xl font-bold shadow-lg shadow-primary/20">
+                <Link href="/merchant/add-product" className="bg-primary px-8 py-3 rounded-xl font-bold shadow-lg shadow-primary/20 transition-all active:scale-95">
                     Carregar Vídeo
                 </Link>
             </div>
         );
     }
-
-    const handleVideoError = useCallback((videoId: string) => {
-        setVideos(prev => prev.filter(v => v.id !== videoId));
-    }, []);
 
     return (
         <div className="video-container h-screen overflow-y-scroll snap-y snap-mandatory bg-black">
