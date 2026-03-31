@@ -1,62 +1,109 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
-import { requireAuth } from "@/lib/auth";
-import { ensureWallet } from "@/lib/admin";
+import { getUserFromRequest } from "@/lib/auth";
 
-// GET - Get merchant wallet info
 export async function GET(request: NextRequest) {
     try {
-        const user = requireAuth(request);
+        const user = getUserFromRequest(request);
+        if (!user?.id) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
 
-        const wallet = await ensureWallet(user.id);
-
-        // Get recent transactions
-        const transactions = await query(
-            `SELECT * FROM wallet_transactions
-            WHERE wallet_id = $1
-            ORDER BY created_at DESC
-            LIMIT 20`,
-            [wallet.id]
-        );
-
-        // Get pending withdrawals
-        const pendingWithdrawals = await query(
-            `SELECT * FROM withdrawal_requests
-            WHERE merchant_id = $1 AND status IN ('pending', 'processing')
-            ORDER BY created_at DESC`,
-            [user.id]
-        );
+        // Fetch coins balance
+        const accRes = await query("SELECT coins_balance FROM profiles WHERE id = $1", [user.id]);
+        
+        // Fetch all active coupons and user ownership
+        const couponsRes = await query(`
+            SELECT 
+                c.id, c.code, c.discount_amount, c.discount_type, c.cost_in_coins, 
+                c.min_purchase, c.valid_until,
+                CASE WHEN uc.id IS NOT NULL THEN true ELSE false END as owned,
+                uc.used
+            FROM coupons c
+            LEFT JOIN user_coupons uc ON c.id = uc.coupon_id AND uc.user_id = $1
+            WHERE c.active = true
+            ORDER BY c.cost_in_coins ASC, c.created_at DESC
+        `, [user.id]);
 
         return NextResponse.json({
-            wallet,
-            transactions: transactions.rows,
-            pendingWithdrawals: pendingWithdrawals.rows,
+            coins: accRes.rows[0]?.coins_balance || 0,
+            coupons: couponsRes.rows
         });
-    } catch (err: any) {
-        return NextResponse.json({ error: err.message }, { status: 401 });
+    } catch (error) {
+        console.error("Error fetching wallet:", error);
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }
 
-// PUT - Update PIX key
-export async function PUT(request: NextRequest) {
+// Redeem coupon
+export async function POST(request: NextRequest) {
     try {
-        const user = requireAuth(request);
-        const body = await request.json();
-        const { pixKey, pixKeyType } = body;
-
-        if (!pixKey || !pixKeyType) {
-            return NextResponse.json({ error: "Chave PIX e tipo são obrigatórios" }, { status: 400 });
+        const user = getUserFromRequest(request);
+        if (!user?.id) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const wallet = await ensureWallet(user.id);
+        const body = await request.json();
+        const { couponId } = body;
 
-        await query(
-            `UPDATE wallets SET pix_key = $1, pix_key_type = $2, updated_at = NOW() WHERE id = $3`,
-            [pixKey, pixKeyType, wallet.id]
-        );
+        if (!couponId) {
+            return NextResponse.json({ error: "Coupon ID is required" }, { status: 400 });
+        }
 
-        return NextResponse.json({ success: true });
-    } catch (err: any) {
-        return NextResponse.json({ error: err.message }, { status: 401 });
+        await query('BEGIN');
+        
+        try {
+            // Check coupon
+            const couponRes = await query(
+                "SELECT id, cost_in_coins, active FROM coupons WHERE id = $1 FOR UPDATE", 
+                [couponId]
+            );
+            
+            const coupon = couponRes.rows[0];
+            if (!coupon || !coupon.active) {
+                await query('ROLLBACK');
+                return NextResponse.json({ error: "Cupom inválido ou inativo" }, { status: 400 });
+            }
+
+            // Check if user already owns it
+            const ownedRes = await query("SELECT id FROM user_coupons WHERE user_id = $1 AND coupon_id = $2", [user.id, couponId]);
+            if (ownedRes.rowCount && ownedRes.rowCount > 0) {
+                await query('ROLLBACK');
+                return NextResponse.json({ error: "Você já resgatou este cupom" }, { status: 400 });
+            }
+
+            // Check balance
+            const accRes = await query("SELECT coins_balance FROM profiles WHERE id = $1 FOR UPDATE", [user.id]);
+            const currentCoins = accRes.rows[0].coins_balance;
+
+            const cost = coupon.cost_in_coins || 0;
+
+            if (currentCoins < cost) {
+                await query('ROLLBACK');
+                return NextResponse.json({ error: "Saldo de moedas insuficiente" }, { status: 400 });
+            }
+
+            // Deduct coins and award coupon
+            if (cost > 0) {
+                await query("UPDATE profiles SET coins_balance = coins_balance - $1 WHERE id = $2", [cost, user.id]);
+            }
+
+            await query(
+                "INSERT INTO user_coupons (user_id, coupon_id) VALUES ($1, $2)",
+                [user.id, couponId]
+            );
+
+            await query('COMMIT');
+
+            return NextResponse.json({ success: true, newBalance: currentCoins - cost });
+
+        } catch (e) {
+            await query('ROLLBACK');
+            throw e;
+        }
+        
+    } catch (error) {
+        console.error("Error redeeming coupon:", error);
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }

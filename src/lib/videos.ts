@@ -76,3 +76,15 @@ export async function getComments(videoId: string) {
         return [];
     }
 }
+
+export async function claimVideoReward(videoId: string): Promise<{ success: boolean; awarded?: number; error?: string }> {
+    try {
+        const data = await apiFetch<{ success: boolean; awarded: number }>(`/api/videos/${videoId}/reward`, {
+            method: "POST",
+        });
+        return data;
+    } catch (error: any) {
+        console.error("Error claiming reward:", error);
+        return { success: false, error: error?.message || "Erro desconhecido" };
+    }
+}

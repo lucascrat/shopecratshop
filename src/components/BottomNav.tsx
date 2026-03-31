@@ -1,6 +1,6 @@
 "use client";
 
-import { Home, Search, Plus, MessageCircle, User, LayoutDashboard, Package, Video, BarChart3 } from "lucide-react";
+import { Home, Search, Plus, MessageCircle, User, LayoutDashboard, Package, Video, BarChart3, Coins } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
@@ -53,6 +53,7 @@ export default function BottomNav() {
     const customerItems = [
         { label: "Início", icon: Home, href: "/" },
         { label: "Explorar", icon: Search, href: "/search" },
+        { label: "Carteira", icon: Coins, href: "/wallet" },
         { label: "Mensagens", icon: MessageCircle, href: "/messages" },
         { label: "Perfil", icon: User, href: "/profile" },
     ];

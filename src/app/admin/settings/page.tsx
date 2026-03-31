@@ -168,6 +168,46 @@ export default function AdminSettings() {
                     </p>
                 </section>
 
+                {/* Coin Rewards */}
+                <section className="bg-white/5 border border-white/5 rounded-2xl p-5 space-y-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-yellow-400/20 flex items-center justify-center">
+                            <span className="text-lg">🪙</span>
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-black uppercase tracking-tight">Recompensas TikTok</h3>
+                            <p className="text-[9px] text-white/30 font-bold">Ganho de moedas por tempo assistido</p>
+                        </div>
+                    </div>
+                    
+                    <div className="space-y-3">
+                        <div>
+                            <label className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30 block mb-1.5">
+                                Quantidade de Moedas por Vídeo
+                            </label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={settings.coin_reward_amount || "5"}
+                                onChange={(e) => updateSetting("coin_reward_amount", e.target.value)}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-bold focus:outline-none focus:border-primary/50 text-yellow-400"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30 block mb-1.5">
+                                Segundos exigidos para ganhar
+                            </label>
+                            <input
+                                type="number"
+                                min="1"
+                                value={settings.coin_reward_seconds || "5"}
+                                onChange={(e) => updateSetting("coin_reward_seconds", e.target.value)}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-bold focus:outline-none focus:border-primary/50"
+                            />
+                        </div>
+                    </div>
+                </section>
+
                 {/* Withdrawal Rules */}
                 <section className="bg-white/5 border border-white/5 rounded-2xl p-5 space-y-4">
                     <div className="flex items-center gap-3">

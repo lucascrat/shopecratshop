@@ -250,6 +250,46 @@ CREATE TABLE IF NOT EXISTS platform_settings (
     updated_by UUID REFERENCES profiles(id)
 );
 
+-- ================================================
+-- 15. COUPONS AND COINS
+-- ================================================
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS coins_balance INTEGER NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS coupons (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    code TEXT UNIQUE NOT NULL,
+    discount_amount DECIMAL(10,2) NOT NULL,
+    discount_type TEXT NOT NULL DEFAULT 'percentage' CHECK (discount_type IN ('percentage', 'fixed')),
+    cost_in_coins INTEGER, -- Null means it cannot be bought with coins
+    min_purchase DECIMAL(10,2),
+    valid_until TIMESTAMPTZ,
+    active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS user_coupons (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    coupon_id UUID NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
+    used BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(user_id, coupon_id)
+);
+
+CREATE INDEX idx_user_coupons_user ON user_coupons(user_id);
+
+CREATE TABLE IF NOT EXISTS video_rewards (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    video_id UUID NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    coins_awarded INTEGER NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(user_id, video_id) -- Only allow earning once per video per user
+);
+
+CREATE INDEX idx_video_rewards_user ON video_rewards(user_id);
+CREATE INDEX idx_video_rewards_video ON video_rewards(video_id);
+
 -- Default platform settings
 INSERT INTO platform_settings (key, value, description) VALUES
     ('platform_fee_percent', '3.00', 'Taxa da plataforma sobre cada venda (%)'),
@@ -271,7 +311,9 @@ INSERT INTO platform_settings (key, value, description) VALUES
     ('card_fee_9x', '11.99', 'Taxa cartão 9x (%)'),
     ('card_fee_10x', '12.99', 'Taxa cartão 10x (%)'),
     ('card_fee_11x', '13.99', 'Taxa cartão 11x (%)'),
-    ('card_fee_12x', '14.99', 'Taxa cartão 12x (%)')
+    ('card_fee_12x', '14.99', 'Taxa cartão 12x (%)'),
+    ('coin_reward_amount', '5', 'Quantidade de moedas ganhas por assistir um vídeo'),
+    ('coin_reward_seconds', '5', 'Segundos necessários de vídeo para ganhar as moedas')
 ON CONFLICT (key) DO NOTHING;
 
 -- ================================================

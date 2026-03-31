@@ -10,6 +10,36 @@ export interface Profile {
     full_name: string;
     avatar_url: string;
     role: "customer" | "merchant" | "admin";
+    coins_balance: number;
+    created_at: string;
+}
+
+export interface Coupon {
+    id: string;
+    code: string;
+    discount_amount: number;
+    discount_type: "percentage" | "fixed";
+    cost_in_coins: number | null;
+    min_purchase: number | null;
+    valid_until: string | null;
+    active: boolean;
+    created_at: string;
+}
+
+export interface UserCoupon {
+    id: string;
+    user_id: string;
+    coupon_id: string;
+    used: boolean;
+    created_at: string;
+    coupon?: Coupon;
+}
+
+export interface VideoReward {
+    id: string;
+    user_id: string;
+    video_id: string;
+    coins_awarded: number;
     created_at: string;
 }
 

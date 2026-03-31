@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Heart, MessageCircle, Share2, Bookmark, Plus, Volume2, VolumeX, X, Send, Store } from "lucide-react";
+import { Heart, MessageCircle, Share2, Bookmark, Plus, Volume2, VolumeX, X, Send, Store, Coins } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
-import { toggleLike, toggleBookmark, addComment, getComments } from "@/lib/videos";
+import { toggleLike, toggleBookmark, addComment, getComments, claimVideoReward } from "@/lib/videos";
 import type { VideoFeedItem } from "@/lib/types";
 import { toast } from "sonner";
 
@@ -37,6 +37,39 @@ export default function VideoItem({ video, onError }: VideoItemProps) {
     const [newComment, setNewComment] = useState("");
     const [loadingComments, setLoadingComments] = useState(false);
     const [submittingComment, setSubmittingComment] = useState(false);
+
+    // Coin Reward state
+    const [rewardProgress, setRewardProgress] = useState(0);
+    const [rewardClaimed, setRewardClaimed] = useState(false);
+    const rewardSeconds = 5; // Configurable via Admin realistically
+    const accumulatedTimeRef = useRef(0);
+
+    // Track watch time and claim
+    useEffect(() => {
+        if (!user || rewardClaimed) return;
+
+        const interval = setInterval(() => {
+            if (videoRef.current && !videoRef.current.paused) {
+                accumulatedTimeRef.current += 0.1;
+                const progress = Math.min((accumulatedTimeRef.current / rewardSeconds) * 100, 100);
+                setRewardProgress(progress);
+
+                if (accumulatedTimeRef.current >= rewardSeconds) {
+                    setRewardClaimed(true);
+                    setRewardProgress(100);
+                    
+                    // Claim API call
+                    claimVideoReward(video.id).then(res => {
+                        if (res.success) {
+                            toast.success(`Você ganhou +${res.awarded} moedas! 🪙`);
+                        }
+                    }).catch(() => {});
+                }
+            }
+        }, 100);
+
+        return () => clearInterval(interval);
+    }, [user, rewardClaimed, video.id]);
 
     useEffect(() => {
         const observer = new IntersectionObserver(
@@ -196,6 +229,32 @@ export default function VideoItem({ video, onError }: VideoItemProps) {
 
             {/* Overlays */}
             <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/60 pointer-events-none" />
+
+            {/* Coin Reward Float */}
+            {user && !rewardClaimed && (
+                <div className="absolute top-4 left-4 z-20 flex items-center justify-center">
+                    <div className="relative w-10 h-10 flex items-center justify-center bg-black/20 backdrop-blur-md rounded-full shadow-lg">
+                        <svg className="absolute inset-0 w-full h-full transform -rotate-90">
+                            <circle
+                                cx="20" cy="20" r="18"
+                                stroke="rgba(255,255,255,0.1)"
+                                strokeWidth="2.5" fill="none"
+                            />
+                            <circle
+                                cx="20" cy="20" r="18"
+                                stroke="#EAB308"
+                                strokeWidth="2.5" fill="none"
+                                strokeDasharray="113.097"
+                                strokeDashoffset={113.097 - (113.097 * rewardProgress) / 100}
+                                className="transition-all duration-100 ease-linear"
+                            />
+                        </svg>
+                        <div className="bg-yellow-500 rounded-full w-6 h-6 flex items-center justify-center shadow-[0_0_15px_rgba(234,179,8,0.5)]">
+                            <Coins className="w-3.5 h-3.5 text-black" />
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Mute Toggle */}
             <button
