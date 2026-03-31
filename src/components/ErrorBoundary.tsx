@@ -43,8 +43,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                         <AlertTriangle className="w-10 h-10 text-red-500" />
                     </div>
                     <h2 className="text-xl font-bold mb-2">Algo deu errado</h2>
+                    <div className="bg-black/50 overflow-auto p-4 rounded-xl text-left border border-white/10 w-full mb-6">
+                        <p className="text-red-400 font-mono text-xs break-words whitespace-pre-wrap">
+                            {this.state.error ? String(this.state.error?.stack || this.state.error?.message || this.state.error) : "No error details available"}
+                        </p>
+                    </div>
                     <p className="text-white/40 text-sm mb-6 max-w-xs">
-                        Ocorreu um erro inesperado. Tente recarregar a página.
+                        Tente recarregar a página.
                     </p>
                     <button
                         onClick={this.handleRetry}
