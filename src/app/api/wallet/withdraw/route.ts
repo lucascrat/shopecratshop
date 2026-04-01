@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { ensureWallet } from "@/lib/admin";
+import { sendPixTransfer } from "@/lib/efi";
 
-// POST - Request withdrawal
+// POST - Request withdrawal (automatic PIX transfer via Efi)
 export async function POST(request: NextRequest) {
     try {
         const user = requireAuth(request);
@@ -44,10 +45,10 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Determine method: automatic if >= R$100, manual otherwise
-        const method = amount >= 100 ? "automatic" : "manual";
-
+        // ── Step 1: Debit wallet and create records (transaction) ──
         await query("BEGIN", []);
+
+        let withdrawalId: string;
 
         try {
             // Debit wallet
@@ -56,32 +57,99 @@ export async function POST(request: NextRequest) {
                 [amount, wallet.id]
             );
 
-            // Create withdrawal request
-            await query(
+            // Create withdrawal request as 'processing'
+            const wrResult = await query(
                 `INSERT INTO withdrawal_requests (wallet_id, merchant_id, amount, pix_key, pix_key_type, method, status)
-                VALUES ($1, $2, $3, $4, $5, $6, 'pending')`,
-                [wallet.id, user.id, amount, wallet.pix_key, wallet.pix_key_type, method]
+                VALUES ($1, $2, $3, $4, $5, 'automatic', 'processing')
+                RETURNING id`,
+                [wallet.id, user.id, amount, wallet.pix_key, wallet.pix_key_type]
             );
+            withdrawalId = wrResult.rows[0].id;
 
-            // Create wallet transaction
+            // Create wallet transaction as 'processing'
             await query(
                 `INSERT INTO wallet_transactions (wallet_id, type, amount, description, status)
-                VALUES ($1, 'withdrawal', $2, $3, 'pending')`,
-                [wallet.id, amount, `Solicitação de saque via PIX (${method === "automatic" ? "automático" : "manual"})`]
+                VALUES ($1, 'withdrawal', $2, 'Saque automático via PIX', 'processing')`,
+                [wallet.id, amount]
             );
 
             await query("COMMIT", []);
-
-            return NextResponse.json({
-                success: true,
-                method,
-                message: method === "automatic"
-                    ? "Saque automático via API Efi em processamento"
-                    : "Saque manual solicitado. O admin processará em até 24h",
-            });
         } catch (err) {
             await query("ROLLBACK", []);
             throw err;
+        }
+
+        // ── Step 2: Send PIX via Efi API (outside transaction) ──
+        try {
+            const pixResult = await sendPixTransfer(
+                wallet.pix_key,
+                wallet.pix_key_type,
+                amount,
+                `Saque Shopcrat #${withdrawalId.substring(0, 8)}`
+            );
+
+            // PIX sent successfully — mark as completed
+            await query(
+                `UPDATE withdrawal_requests SET
+                    status = 'completed',
+                    admin_notes = $1,
+                    processed_at = NOW()
+                WHERE id = $2`,
+                [`PIX automático enviado. e2eId: ${pixResult.transferId}`, withdrawalId]
+            );
+
+            await query(
+                `UPDATE wallets SET total_withdrawn = total_withdrawn + $1, updated_at = NOW()
+                WHERE id = $2`,
+                [amount, wallet.id]
+            );
+
+            await query(
+                `UPDATE wallet_transactions SET status = 'completed'
+                WHERE wallet_id = $1 AND type = 'withdrawal' AND status = 'processing'
+                AND amount = $2`,
+                [wallet.id, amount]
+            );
+
+            console.log(`[Withdraw] PIX automático enviado: R$ ${amount} → ${wallet.pix_key} (e2eId: ${pixResult.transferId})`);
+
+            return NextResponse.json({
+                success: true,
+                method: "automatic",
+                message: "PIX enviado automaticamente! O valor cairá na sua conta em instantes.",
+                transferId: pixResult.transferId,
+            });
+        } catch (pixError: any) {
+            // PIX failed — refund wallet and mark as failed
+            console.error("[Withdraw] Erro no PIX automático:", pixError.message);
+
+            await query(
+                `UPDATE withdrawal_requests SET
+                    status = 'failed',
+                    admin_notes = $1,
+                    processed_at = NOW()
+                WHERE id = $2`,
+                [`Erro no PIX automático: ${pixError.message}`, withdrawalId]
+            );
+
+            // Refund balance
+            await query(
+                `UPDATE wallets SET balance = balance + $1, updated_at = NOW() WHERE id = $2`,
+                [amount, wallet.id]
+            );
+
+            // Mark transaction as failed
+            await query(
+                `UPDATE wallet_transactions SET status = 'failed', description = $1
+                WHERE wallet_id = $2 AND type = 'withdrawal' AND status = 'processing'
+                AND amount = $3`,
+                [`Saque falhou: ${pixError.message}`, wallet.id, amount]
+            );
+
+            return NextResponse.json({
+                success: false,
+                error: `Erro ao enviar PIX: ${pixError.message}. Seu saldo foi restaurado.`,
+            }, { status: 500 });
         }
     } catch (err: any) {
         return NextResponse.json({ error: err.message }, { status: 400 });
