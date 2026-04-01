@@ -22,6 +22,8 @@ import {
     Banknote,
     Wallet,
     AlertCircle,
+    CheckCircle2,
+    KeyRound,
 } from "lucide-react";
 import UsernameEditor from "@/components/UsernameEditor";
 import Link from "next/link";
@@ -75,6 +77,11 @@ export default function MerchantDashboard() {
     const [showWithdrawModal, setShowWithdrawModal] = useState(false);
     const [withdrawAmount, setWithdrawAmount] = useState("");
     const [withdrawing, setWithdrawing] = useState(false);
+
+    // PIX registration state (inline in withdraw modal)
+    const [newPixKey, setNewPixKey] = useState("");
+    const [newPixKeyType, setNewPixKeyType] = useState<string>("cpf");
+    const [savingPix, setSavingPix] = useState(false);
 
     useEffect(() => {
         if (!user) return;
@@ -191,7 +198,7 @@ export default function MerchantDashboard() {
             return;
         }
         if (!dashboard?.wallet.pixKey) {
-            toast.error("Configure sua chave PIX antes de solicitar saque");
+            toast.error("Configure sua chave PIX primeiro");
             return;
         }
         if (amount > (dashboard?.wallet.balance || 0)) {
@@ -212,6 +219,31 @@ export default function MerchantDashboard() {
             toast.error(err.message || "Erro ao solicitar saque");
         } finally {
             setWithdrawing(false);
+        }
+    }
+
+    async function handleSavePix() {
+        if (!newPixKey.trim()) {
+            toast.error("Preencha a chave PIX");
+            return;
+        }
+        setSavingPix(true);
+        try {
+            await apiFetch("/api/wallet/pix", {
+                method: "PATCH",
+                body: JSON.stringify({ pixKey: newPixKey.trim(), pixKeyType: newPixKeyType }),
+            });
+            toast.success("Chave PIX salva com sucesso!");
+            // Update local state so the form switches to withdraw view
+            setDashboard(prev => prev ? {
+                ...prev,
+                wallet: { ...prev.wallet, pixKey: newPixKey.trim(), pixKeyType: newPixKeyType },
+            } : prev);
+            setNewPixKey("");
+        } catch (err: any) {
+            toast.error(err.message || "Erro ao salvar chave PIX");
+        } finally {
+            setSavingPix(false);
         }
     }
 
@@ -621,11 +653,76 @@ export default function MerchantDashboard() {
                         </div>
 
                         {!dashboard?.wallet.pixKey ? (
-                            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4 flex items-center gap-3">
-                                <AlertCircle className="w-5 h-5 text-yellow-400 shrink-0" />
-                                <p className="text-xs text-yellow-400 font-bold">
-                                    Configure sua chave PIX nas configurações da carteira antes de solicitar um saque.
-                                </p>
+                            <div className="space-y-4">
+                                {/* Header */}
+                                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4 flex items-center gap-3">
+                                    <KeyRound className="w-5 h-5 text-yellow-400 shrink-0" />
+                                    <p className="text-xs text-yellow-400 font-bold">
+                                        Cadastre sua chave PIX para receber seus saques.
+                                    </p>
+                                </div>
+
+                                {/* PIX type selector */}
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 block mb-2">
+                                        Tipo da Chave
+                                    </label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {[
+                                            { value: "cpf", label: "CPF" },
+                                            { value: "cnpj", label: "CNPJ" },
+                                            { value: "email", label: "E-mail" },
+                                            { value: "phone", label: "Telefone" },
+                                            { value: "random", label: "Aleatória" },
+                                        ].map((type) => (
+                                            <button
+                                                key={type.value}
+                                                onClick={() => setNewPixKeyType(type.value)}
+                                                className={`py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border ${
+                                                    newPixKeyType === type.value
+                                                        ? "border-green-500 bg-green-500/10 text-green-400"
+                                                        : "border-white/10 text-white/40 hover:border-white/20"
+                                                }`}
+                                            >
+                                                {type.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* PIX key input */}
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 block mb-2">
+                                        Sua Chave PIX
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={newPixKey}
+                                        onChange={(e) => setNewPixKey(e.target.value)}
+                                        placeholder={
+                                            newPixKeyType === "cpf" ? "000.000.000-00" :
+                                            newPixKeyType === "cnpj" ? "00.000.000/0001-00" :
+                                            newPixKeyType === "email" ? "seu@email.com" :
+                                            newPixKeyType === "phone" ? "+55 11 99999-9999" :
+                                            "Chave aleatória"
+                                        }
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3.5 text-sm focus:outline-none focus:border-green-500/50 placeholder:text-white/20"
+                                    />
+                                </div>
+
+                                {/* Save PIX button */}
+                                <button
+                                    onClick={handleSavePix}
+                                    disabled={savingPix || !newPixKey.trim()}
+                                    className="w-full bg-green-500 hover:bg-green-600 disabled:opacity-40 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-xl shadow-green-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                >
+                                    {savingPix ? (
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                    ) : (
+                                        <CheckCircle2 className="w-5 h-5" />
+                                    )}
+                                    Salvar Chave PIX
+                                </button>
                             </div>
                         ) : (
                             <>
