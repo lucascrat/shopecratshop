@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
         const store = storeRows[0];
 
         // Get all dashboard data in parallel
-        const [productsRes, ordersRes, videosRes] = await Promise.all([
+        const [productsRes, ordersRes, videosRes, walletRes] = await Promise.all([
             query(
                 "SELECT * FROM products WHERE store_id = $1 ORDER BY created_at DESC LIMIT 5",
                 [store.id]
@@ -32,11 +32,16 @@ export async function GET(request: NextRequest) {
                 "SELECT id FROM videos WHERE store_id = $1",
                 [store.id]
             ),
+            query(
+                "SELECT balance, pix_key, pix_key_type FROM wallets WHERE merchant_id = $1",
+                [user.id]
+            ),
         ]);
 
         const totalSales = ordersRes.rows.reduce((sum: number, o: any) => sum + parseFloat(o.total || 0), 0);
         const totalOrders = ordersRes.rows.length;
         const totalVideos = videosRes.rows.length;
+        const wallet = walletRes.rows[0] || null;
 
         return NextResponse.json({
             store,
@@ -45,6 +50,11 @@ export async function GET(request: NextRequest) {
             totalOrders,
             totalVideos,
             estimatedViews: totalVideos * 150,
+            wallet: wallet ? {
+                balance: parseFloat(wallet.balance || "0"),
+                pixKey: wallet.pix_key || null,
+                pixKeyType: wallet.pix_key_type || null,
+            } : { balance: 0, pixKey: null, pixKeyType: null },
         });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);

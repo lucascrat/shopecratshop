@@ -19,6 +19,9 @@ import {
     Save,
     Store,
     AtSign,
+    Banknote,
+    Wallet,
+    AlertCircle,
 } from "lucide-react";
 import UsernameEditor from "@/components/UsernameEditor";
 import Link from "next/link";
@@ -37,12 +40,19 @@ interface StoreInfo {
     username: string;
 }
 
+interface WalletInfo {
+    balance: number;
+    pixKey: string | null;
+    pixKeyType: string | null;
+}
+
 interface DashboardData {
     store: StoreInfo;
     totalSales: number;
     totalOrders: number;
     totalViews: number;
     recentProducts: Array<Product & { salesCount: number }>;
+    wallet: WalletInfo;
 }
 
 export default function MerchantDashboard() {
@@ -61,6 +71,11 @@ export default function MerchantDashboard() {
     const [showUsernameEditor, setShowUsernameEditor] = useState(false);
     const logoInputRef = useRef<HTMLInputElement>(null);
 
+    // Withdraw state
+    const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+    const [withdrawAmount, setWithdrawAmount] = useState("");
+    const [withdrawing, setWithdrawing] = useState(false);
+
     useEffect(() => {
         if (!user) return;
         fetchDashboard();
@@ -76,6 +91,7 @@ export default function MerchantDashboard() {
                 totalOrders: number;
                 totalVideos: number;
                 estimatedViews: number;
+                wallet: WalletInfo;
             }>("/api/merchant/dashboard");
 
             const recentProducts: Array<Product & { salesCount: number }> = (data.products || []).map((p) => ({
@@ -89,6 +105,7 @@ export default function MerchantDashboard() {
                 totalOrders: data.totalOrders,
                 totalViews: data.estimatedViews,
                 recentProducts,
+                wallet: data.wallet || { balance: 0, pixKey: null, pixKeyType: null },
             });
         } catch (err) {
             console.error("Failed to load dashboard:", err);
@@ -164,6 +181,37 @@ export default function MerchantDashboard() {
             toast.error(err.message || "Erro ao salvar");
         } finally {
             setSavingStore(false);
+        }
+    }
+
+    async function handleWithdraw() {
+        const amount = parseFloat(withdrawAmount);
+        if (!amount || amount <= 0) {
+            toast.error("Insira um valor válido");
+            return;
+        }
+        if (!dashboard?.wallet.pixKey) {
+            toast.error("Configure sua chave PIX antes de solicitar saque");
+            return;
+        }
+        if (amount > (dashboard?.wallet.balance || 0)) {
+            toast.error("Saldo insuficiente");
+            return;
+        }
+        setWithdrawing(true);
+        try {
+            const res = await apiFetch<{ success: boolean; method: string; message: string }>("/api/wallet/withdraw", {
+                method: "POST",
+                body: JSON.stringify({ amount }),
+            });
+            toast.success(res.message || "Saque solicitado!");
+            setShowWithdrawModal(false);
+            setWithdrawAmount("");
+            fetchDashboard();
+        } catch (err: any) {
+            toast.error(err.message || "Erro ao solicitar saque");
+        } finally {
+            setWithdrawing(false);
         }
     }
 
@@ -260,6 +308,41 @@ export default function MerchantDashboard() {
                             <p className="text-xl font-black italic">{totalViews >= 1000 ? `${(totalViews / 1000).toFixed(1)}K` : totalViews}</p>
                         </div>
                     </div>
+                </div>
+            </section>
+
+            {/* Wallet Balance + Withdraw */}
+            <section className="px-6 mb-8">
+                <div className="bg-gradient-to-br from-green-500/10 to-emerald-600/5 border border-green-500/20 rounded-[28px] p-5">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-2xl bg-green-500/20 flex items-center justify-center">
+                                <Wallet className="w-5 h-5 text-green-400" />
+                            </div>
+                            <div>
+                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30">Saldo Disponível</p>
+                                <p className="text-2xl font-black italic text-green-400">
+                                    R$ {(dashboard?.wallet.balance || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] text-white/30 mb-4">
+                        <Banknote className="w-3.5 h-3.5" />
+                        <span>
+                            PIX: {dashboard?.wallet.pixKey
+                                ? `${dashboard.wallet.pixKeyType?.toUpperCase()} • ${dashboard.wallet.pixKey.substring(0, 8)}...`
+                                : "Não configurado"}
+                        </span>
+                    </div>
+                    <button
+                        onClick={() => setShowWithdrawModal(true)}
+                        disabled={!dashboard?.wallet.balance || dashboard.wallet.balance <= 0}
+                        className="w-full bg-green-500 hover:bg-green-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-black py-3.5 rounded-2xl text-xs uppercase tracking-widest shadow-xl shadow-green-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                    >
+                        <Banknote className="w-5 h-5" />
+                        Sacar via PIX
+                    </button>
                 </div>
             </section>
 
@@ -503,6 +586,98 @@ export default function MerchantDashboard() {
                             )}
                             Salvar Perfil
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Withdraw Modal */}
+            {showWithdrawModal && (
+                <div className="fixed inset-0 z-[100] flex flex-col justify-end">
+                    <div
+                        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+                        onClick={() => setShowWithdrawModal(false)}
+                    />
+                    <div className="relative bg-[#111] border-t border-white/10 rounded-t-[32px] p-6 pb-10 space-y-5">
+                        <div className="w-10 h-1 bg-white/10 rounded-full mx-auto -mt-1 mb-2" />
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-lg font-black uppercase tracking-tight">Solicitar Saque</h2>
+                            <button
+                                onClick={() => setShowWithdrawModal(false)}
+                                className="p-2 text-white/30 hover:text-white"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Balance info */}
+                        <div className="bg-green-500/10 border border-green-500/20 rounded-2xl p-4 flex items-center gap-3">
+                            <Wallet className="w-5 h-5 text-green-400 shrink-0" />
+                            <div>
+                                <p className="text-[10px] text-white/30 font-bold uppercase tracking-wider">Saldo disponível</p>
+                                <p className="text-lg font-black text-green-400">
+                                    R$ {(dashboard?.wallet.balance || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                                </p>
+                            </div>
+                        </div>
+
+                        {!dashboard?.wallet.pixKey ? (
+                            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4 flex items-center gap-3">
+                                <AlertCircle className="w-5 h-5 text-yellow-400 shrink-0" />
+                                <p className="text-xs text-yellow-400 font-bold">
+                                    Configure sua chave PIX nas configurações da carteira antes de solicitar um saque.
+                                </p>
+                            </div>
+                        ) : (
+                            <>
+                                {/* PIX destination */}
+                                <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 mb-1">Enviar para</p>
+                                    <div className="flex items-center gap-2">
+                                        <Banknote className="w-4 h-4 text-primary" />
+                                        <span className="text-sm font-bold">
+                                            {dashboard.wallet.pixKeyType?.toUpperCase()} • {dashboard.wallet.pixKey}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Amount input */}
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 block mb-2">
+                                        Valor do Saque (R$)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="1"
+                                        max={dashboard?.wallet.balance || 0}
+                                        value={withdrawAmount}
+                                        onChange={(e) => setWithdrawAmount(e.target.value)}
+                                        placeholder="0,00"
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-4 text-2xl font-black text-green-400 text-center focus:outline-none focus:border-green-500/50 placeholder:text-white/10"
+                                    />
+                                    <button
+                                        onClick={() => setWithdrawAmount(String(dashboard?.wallet.balance || 0))}
+                                        className="mt-2 text-[10px] text-primary font-black uppercase tracking-widest w-full text-center"
+                                    >
+                                        Sacar tudo
+                                    </button>
+                                </div>
+
+                                {/* Confirm */}
+                                <button
+                                    onClick={handleWithdraw}
+                                    disabled={withdrawing || !withdrawAmount || parseFloat(withdrawAmount) <= 0}
+                                    className="w-full bg-green-500 hover:bg-green-600 disabled:opacity-40 text-white font-black py-4 rounded-2xl text-sm uppercase tracking-widest shadow-xl shadow-green-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                >
+                                    {withdrawing ? (
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                    ) : (
+                                        <Banknote className="w-5 h-5" />
+                                    )}
+                                    Confirmar Saque
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
             )}
