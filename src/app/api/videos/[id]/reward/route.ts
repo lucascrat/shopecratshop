@@ -4,7 +4,7 @@ import { getUserFromRequest } from "@/lib/auth";
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const user = getUserFromRequest(request);
@@ -12,7 +12,8 @@ export async function POST(
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const videoId = params.id;
+        const resolvedParams = await params;
+        const videoId = resolvedParams.id;
         if (!videoId) {
             return NextResponse.json({ error: "Video ID is required" }, { status: 400 });
         }
