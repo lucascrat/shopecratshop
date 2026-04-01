@@ -92,6 +92,11 @@ export async function PATCH(request: NextRequest) {
             return NextResponse.json({ error: "Solicitação já foi processada" }, { status: 400 });
         }
 
+        // Check if admin.id is a valid UUID; if not, use NULL for processed_by
+        const isValidUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(admin.id);
+        const processedBy = isValidUuid ? admin.id : null;
+        const adminLabel = isValidUuid ? "" : ` [por ${admin.id}]`;
+
         await query("BEGIN", []);
 
         try {
@@ -104,7 +109,7 @@ export async function PATCH(request: NextRequest) {
                         processed_at = NOW(),
                         processed_by = $2
                     WHERE id = $3`,
-                    [adminNotes || "Pagamento aprovado pelo admin", admin.id, withdrawalId]
+                    [(adminNotes || "Pagamento aprovado pelo admin") + adminLabel, processedBy, withdrawalId]
                 );
 
                 // Update wallet totals
@@ -120,7 +125,7 @@ export async function PATCH(request: NextRequest) {
                 await query(
                     `INSERT INTO wallet_transactions (wallet_id, type, amount, description, status)
                     VALUES ($1, 'withdrawal', $2, $3, 'completed')`,
-                    [withdrawal.wallet_id, withdrawal.amount, `Saque via PIX aprovado - ${adminNotes || ""}`]
+                    [withdrawal.wallet_id, withdrawal.amount, `Saque via PIX aprovado - ${adminNotes || ""}${adminLabel}`]
                 );
             } else {
                 // Reject - return balance to wallet
@@ -131,7 +136,7 @@ export async function PATCH(request: NextRequest) {
                         processed_at = NOW(),
                         processed_by = $2
                     WHERE id = $3`,
-                    [adminNotes || "Solicitação rejeitada", admin.id, withdrawalId]
+                    [(adminNotes || "Solicitação rejeitada") + adminLabel, processedBy, withdrawalId]
                 );
 
                 // Return balance
