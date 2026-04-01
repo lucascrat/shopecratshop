@@ -40,7 +40,7 @@ export default function CheckoutPage() {
 
 function CheckoutContent() {
     const searchParams = useSearchParams();
-    const productId = searchParams.get("id");
+    const productId = searchParams.get("productId") || searchParams.get("id");
     const router = useRouter();
     const { user } = useAuth();
 
