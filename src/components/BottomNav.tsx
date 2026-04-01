@@ -35,8 +35,9 @@ export default function BottomNav() {
     // Hide on admin pages (admin has its own nav)
     if (pathname?.startsWith("/admin")) return null;
 
-    // Hide on checkout, login, register pages
+    // Hide on checkout, login, register, product pages
     if (["/checkout", "/login", "/register", "/forgot-password"].some(p => pathname?.startsWith(p))) return null;
+    if (pathname?.startsWith("/product")) return null;
 
     const isMerchant = profile?.role === "merchant";
 
