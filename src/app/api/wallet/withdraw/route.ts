@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
-import { ensureWallet } from "@/lib/admin";
+import { ensureWallet, getPlatformSetting } from "@/lib/admin";
 import { sendPixTransfer } from "@/lib/efi";
 
 // POST - Request withdrawal (automatic PIX transfer via Efi)
@@ -45,13 +45,24 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Get withdrawal fee from platform settings
+        const withdrawalFeeFixed = parseFloat(await getPlatformSetting("withdrawal_fee_fixed") || "0");
+        const netAmount = Math.round((amount - withdrawalFeeFixed) * 100) / 100;
+
+        if (netAmount <= 0) {
+            return NextResponse.json(
+                { error: `Valor muito baixo. Taxa de saque é R$ ${withdrawalFeeFixed.toFixed(2)}` },
+                { status: 400 }
+            );
+        }
+
         // ── Step 1: Debit wallet and create records (transaction) ──
         await query("BEGIN", []);
 
         let withdrawalId: string;
 
         try {
-            // Debit wallet
+            // Debit full amount from wallet (includes fee)
             await query(
                 `UPDATE wallets SET balance = balance - $1, updated_at = NOW() WHERE id = $2`,
                 [amount, wallet.id]
@@ -67,10 +78,13 @@ export async function POST(request: NextRequest) {
             withdrawalId = wrResult.rows[0].id;
 
             // Create wallet transaction as 'processing'
+            const feeNote = withdrawalFeeFixed > 0
+                ? ` (taxa R$ ${withdrawalFeeFixed.toFixed(2)}, enviado R$ ${netAmount.toFixed(2)})`
+                : "";
             await query(
                 `INSERT INTO wallet_transactions (wallet_id, type, amount, description, status)
-                VALUES ($1, 'withdrawal', $2, 'Saque automático via PIX', 'processing')`,
-                [wallet.id, amount]
+                VALUES ($1, 'withdrawal', $2, $3, 'processing')`,
+                [wallet.id, amount, `Saque automático via PIX${feeNote}`]
             );
 
             await query("COMMIT", []);
@@ -79,23 +93,26 @@ export async function POST(request: NextRequest) {
             throw err;
         }
 
-        // ── Step 2: Send PIX via Efi API (outside transaction) ──
+        // ── Step 2: Send PIX via Efi API (net amount after fee) ──
         try {
             const pixResult = await sendPixTransfer(
                 wallet.pix_key,
                 wallet.pix_key_type,
-                amount,
+                netAmount,
                 `Saque Shopcrat #${withdrawalId.substring(0, 8)}`
             );
 
             // PIX sent successfully — mark as completed
+            const feeInfo = withdrawalFeeFixed > 0
+                ? ` | Taxa: R$ ${withdrawalFeeFixed.toFixed(2)}`
+                : "";
             await query(
                 `UPDATE withdrawal_requests SET
                     status = 'completed',
                     admin_notes = $1,
                     processed_at = NOW()
                 WHERE id = $2`,
-                [`PIX automático enviado. e2eId: ${pixResult.transferId}`, withdrawalId]
+                [`PIX automático enviado R$ ${netAmount.toFixed(2)}. e2eId: ${pixResult.transferId}${feeInfo}`, withdrawalId]
             );
 
             await query(
@@ -111,13 +128,20 @@ export async function POST(request: NextRequest) {
                 [wallet.id, amount]
             );
 
-            console.log(`[Withdraw] PIX automático enviado: R$ ${amount} → ${wallet.pix_key} (e2eId: ${pixResult.transferId})`);
+            console.log(`[Withdraw] PIX automático: R$ ${amount} (líquido R$ ${netAmount}) → ${wallet.pix_key} (e2eId: ${pixResult.transferId})`);
+
+            const feeMsg = withdrawalFeeFixed > 0
+                ? ` (taxa R$ ${withdrawalFeeFixed.toFixed(2)}, líquido R$ ${netAmount.toFixed(2)})`
+                : "";
 
             return NextResponse.json({
                 success: true,
                 method: "automatic",
-                message: "PIX enviado automaticamente! O valor cairá na sua conta em instantes.",
+                message: `PIX de R$ ${netAmount.toFixed(2)} enviado automaticamente!${feeMsg} O valor cairá na sua conta em instantes.`,
                 transferId: pixResult.transferId,
+                grossAmount: amount,
+                fee: withdrawalFeeFixed,
+                netAmount,
             });
         } catch (pixError: any) {
             // PIX failed — refund wallet and mark as failed
@@ -132,7 +156,7 @@ export async function POST(request: NextRequest) {
                 [`Erro no PIX automático: ${pixError.message}`, withdrawalId]
             );
 
-            // Refund balance
+            // Refund full balance
             await query(
                 `UPDATE wallets SET balance = balance + $1, updated_at = NOW() WHERE id = $2`,
                 [amount, wallet.id]

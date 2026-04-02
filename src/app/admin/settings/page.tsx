@@ -16,6 +16,7 @@ import {
     ChevronDown,
     Key,
     AlertTriangle,
+    Banknote,
 } from "lucide-react";
 
 export default function AdminSettings() {
@@ -235,6 +236,21 @@ export default function AdminSettings() {
                         </div>
                         <div>
                             <label className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30 block mb-1.5">
+                                <Banknote className="w-3 h-3 inline mr-1 text-green-400" />
+                                Taxa fixa por saque PIX (R$)
+                            </label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={settings.withdrawal_fee_fixed || "0.00"}
+                                onChange={(e) => updateSetting("withdrawal_fee_fixed", e.target.value)}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-bold focus:outline-none focus:border-primary/50"
+                            />
+                            <p className="text-[8px] text-white/20 mt-1">Valor descontado do saque do lojista. Ex: Saque de R$ 50 com taxa R$ 1 → lojista recebe R$ 49</p>
+                        </div>
+                        <div>
+                            <label className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30 block mb-1.5">
                                 <Zap className="w-3 h-3 inline mr-1 text-yellow-400" />
                                 Mínimo para saque automático (R$)
                             </label>
@@ -259,6 +275,16 @@ export default function AdminSettings() {
                                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-bold focus:outline-none focus:border-primary/50"
                             />
                         </div>
+                    </div>
+
+                    {/* Fee Preview */}
+                    <div className="bg-white/5 rounded-xl p-3 space-y-1">
+                        <p className="text-[9px] text-white/20 text-center">
+                            📊 Exemplo: Venda de R$ 100 → Taxa plataforma {settings.platform_fee_percent || "3"}% = R$ {(100 * parseFloat(settings.platform_fee_percent || "3") / 100).toFixed(2)}
+                        </p>
+                        <p className="text-[9px] text-white/20 text-center">
+                            💸 Saque de R$ {(100 - 100 * parseFloat(settings.platform_fee_percent || "3") / 100).toFixed(2)} → Taxa saque R$ {parseFloat(settings.withdrawal_fee_fixed || "0").toFixed(2)} → Recebe R$ {(100 - 100 * parseFloat(settings.platform_fee_percent || "3") / 100 - parseFloat(settings.withdrawal_fee_fixed || "0")).toFixed(2)}
+                        </p>
                     </div>
                 </section>
 
