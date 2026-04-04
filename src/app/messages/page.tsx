@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import BottomNav from "@/components/BottomNav";
+import AuthGate from "@/components/AuthGate";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
 
@@ -38,6 +39,14 @@ function timeAgo(dateStr: string | null): string {
 }
 
 export default function MessagesPage() {
+    return (
+        <AuthGate message="Crie sua conta para enviar mensagens para as lojas" icon="message">
+            <MessagesContent />
+        </AuthGate>
+    );
+}
+
+function MessagesContent() {
     const { user, profile } = useAuth();
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [filtered, setFiltered]           = useState<Conversation[]>([]);

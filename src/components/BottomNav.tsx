@@ -40,6 +40,7 @@ export default function BottomNav() {
     if (pathname?.startsWith("/product")) return null;
 
     const isMerchant = profile?.role === "merchant";
+    const isLoggedIn = !!profile;
 
     // Merchant nav items
     const merchantItems = [
@@ -50,7 +51,7 @@ export default function BottomNav() {
         { label: "Analítico", icon: BarChart3, href: "/merchant/analytics" },
     ];
 
-    // Customer nav items (no "Criar" button)
+    // Customer nav items (logged in)
     const customerItems = [
         { label: "Início", icon: Home, href: "/" },
         { label: "Explorar", icon: Search, href: "/search" },
@@ -59,7 +60,14 @@ export default function BottomNav() {
         { label: "Perfil", icon: User, href: "/profile" },
     ];
 
-    const navItems = isMerchant ? merchantItems : customerItems;
+    // Visitor nav items (not logged in) — can browse feed & explore, rest goes to login
+    const visitorItems = [
+        { label: "Início", icon: Home, href: "/" },
+        { label: "Explorar", icon: Search, href: "/search" },
+        { label: "Entrar", icon: User, href: "/login" },
+    ];
+
+    const navItems = isMerchant ? merchantItems : isLoggedIn ? customerItems : visitorItems;
 
     function startLongPress() {
         if (intervalRef.current) return;

@@ -8,6 +8,7 @@ import Image from "next/image";
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
+import AuthGate from "@/components/AuthGate";
 import { apiFetch } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -28,13 +29,15 @@ interface InstallmentOption {
 
 export default function CheckoutPage() {
     return (
-        <Suspense fallback={
-            <div className="flex items-center justify-center h-screen bg-background-dark text-primary">
-                <Loader2 className="w-12 h-12 animate-spin" />
-            </div>
-        }>
-            <CheckoutContent />
-        </Suspense>
+        <AuthGate message="Crie sua conta para finalizar sua compra" icon="shop">
+            <Suspense fallback={
+                <div className="flex items-center justify-center h-screen bg-background-dark text-primary">
+                    <Loader2 className="w-12 h-12 animate-spin" />
+                </div>
+            }>
+                <CheckoutContent />
+            </Suspense>
+        </AuthGate>
     );
 }
 

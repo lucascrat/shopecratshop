@@ -6,7 +6,7 @@ import { getVideos } from "@/lib/videos";
 import { useAuth } from "@/components/AuthProvider";
 import Link from "next/link";
 import type { VideoFeedItem } from "@/lib/types";
-import { Loader2 } from "lucide-react";
+import { Loader2, UserPlus } from "lucide-react";
 
 const WINDOW_BEFORE = 1;
 const WINDOW_AFTER = 2;
@@ -293,6 +293,17 @@ export default function VideoFeed() {
                         <Loader2 className="w-8 h-8 text-primary animate-spin" />
                     )}
                 </div>
+            )}
+
+            {/* Floating sign-up banner for visitors */}
+            {!user && currentIndex >= 2 && (
+                <Link
+                    href="/register"
+                    className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-primary/90 backdrop-blur-md px-5 py-2.5 rounded-full shadow-lg shadow-primary/30 animate-in slide-in-from-top duration-500"
+                >
+                    <UserPlus className="w-4 h-4 text-white" />
+                    <span className="text-white text-xs font-bold">Cadastre-se grátis</span>
+                </Link>
             )}
         </div>
     );

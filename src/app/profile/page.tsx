@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/components/AuthProvider";
+import AuthGate from "@/components/AuthGate";
 import BottomNav from "@/components/BottomNav";
 import {
     Settings,
@@ -78,6 +79,14 @@ const STATUS_MAP: Record<string, { label: string; color: string; icon: typeof Ch
 };
 
 export default function ProfilePage() {
+    return (
+        <AuthGate message="Crie sua conta para ver seu perfil, pedidos e lojas favoritas" icon="default">
+            <ProfileContent />
+        </AuthGate>
+    );
+}
+
+function ProfileContent() {
     const { user, profile, signOut } = useAuth();
     const [activeTab, setActiveTab] = useState("Pedidos");
     const router = useRouter();

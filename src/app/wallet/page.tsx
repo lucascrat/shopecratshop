@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import AuthGate from "@/components/AuthGate";
 import { useRouter } from "next/navigation";
 import { Coins, ChevronLeft, TicketPercent, CheckCircle2, AlertCircle } from "lucide-react";
 import Link from "next/link";
@@ -15,6 +16,14 @@ interface ServerCoupon extends Coupon {
 }
 
 export default function WalletPage() {
+    return (
+        <AuthGate message="Crie sua conta para acessar sua carteira, moedas e cupons" icon="shop">
+            <WalletContent />
+        </AuthGate>
+    );
+}
+
+function WalletContent() {
     const { user, profile } = useAuth();
     const router = useRouter();
     const [coins, setCoins] = useState<number>(0);
@@ -22,10 +31,7 @@ export default function WalletPage() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (!user) {
-            router.push("/login");
-            return;
-        }
+        if (!user) return;
 
         const fetchWallet = async () => {
             try {
