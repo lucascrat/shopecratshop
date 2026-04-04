@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Heart, MessageCircle, Share2, Bookmark, Plus, Volume2, VolumeX, X, Send, Store, Coins, Loader2 } from "lucide-react";
+import { Heart, MessageCircle, Share2, Bookmark, Plus, Volume2, VolumeX, X, Send, Store, Coins, Loader2, Eye } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
@@ -67,6 +67,31 @@ export default function VideoItem({ video, onError, isActive, preloadLevel = "fu
     const drawerDragStartY = useRef(0);
     const drawerCurrentY = useRef(0);
     const [drawerClosing, setDrawerClosing] = useState(false);
+
+    // Live viewers count — pseudo-random base (1000-3000) with small fluctuation
+    const [viewerCount, setViewerCount] = useState(() => {
+        // Generate consistent base from video ID hash
+        let hash = 0;
+        for (let i = 0; i < video.id.length; i++) {
+            hash = ((hash << 5) - hash + video.id.charCodeAt(i)) | 0;
+        }
+        return 1000 + Math.abs(hash % 2001); // 1000–3000
+    });
+
+    useEffect(() => {
+        if (!isActive) return;
+        const interval = setInterval(() => {
+            setViewerCount(prev => {
+                // Fluctuate ±5–30 to look alive
+                const delta = Math.floor(Math.random() * 26) + 5;
+                const direction = Math.random() > 0.5 ? 1 : -1;
+                const next = prev + delta * direction;
+                // Keep within 1000–3000 minimum range
+                return Math.max(1000, next);
+            });
+        }, 3000 + Math.random() * 2000); // every 3–5s
+        return () => clearInterval(interval);
+    }, [isActive]);
 
     // Track watch time and claim
     useEffect(() => {
@@ -513,6 +538,18 @@ export default function VideoItem({ video, onError, isActive, preloadLevel = "fu
                     </div>
                 </div>
             )}
+
+            {/* Live Viewers Badge */}
+            <div className="absolute top-5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 bg-black/30 backdrop-blur-md px-2.5 py-1 rounded-full">
+                <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                </span>
+                <Eye className="w-3 h-3 text-white/70" />
+                <span className="text-[10px] text-white/80 font-semibold tabular-nums">
+                    {viewerCount >= 1000 ? `${(viewerCount / 1000).toFixed(1).replace('.0', '')}K` : viewerCount}
+                </span>
+            </div>
 
             {/* Mute Toggle */}
             <button
