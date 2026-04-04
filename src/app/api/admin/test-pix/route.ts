@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
             try {
                 let result;
                 if (checkE2e) {
-                    result = await efipay.pixSendDetail({ e2eId: checkE2e });
+                    result = await efipay.pixSendDetail({ e2eid: checkE2e });
                 } else if (checkId) {
                     result = await efipay.pixSendDetailId({ idEnvio: checkId });
                 }
