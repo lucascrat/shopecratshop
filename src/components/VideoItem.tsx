@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Heart, MessageCircle, Share2, Bookmark, Plus, Volume2, VolumeX, X, Send, Store, Coins } from "lucide-react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { Heart, MessageCircle, Share2, Bookmark, Plus, Volume2, VolumeX, X, Send, Store, Coins, Loader2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
@@ -12,6 +12,8 @@ import { toast } from "sonner";
 interface VideoItemProps {
     video: VideoFeedItem;
     onError?: () => void;
+    isActive?: boolean;
+    preloadLevel?: "full" | "next" | "none";
 }
 
 interface CommentData {
@@ -21,7 +23,7 @@ interface CommentData {
     profile: { username: string; avatar_url: string } | null;
 }
 
-export default function VideoItem({ video, onError }: VideoItemProps) {
+export default function VideoItem({ video, onError, isActive, preloadLevel = "full" }: VideoItemProps) {
     const { user } = useAuth();
     const videoRef = useRef<HTMLVideoElement>(null);
     const [muted, setMuted] = useState(true);
@@ -44,6 +46,28 @@ export default function VideoItem({ video, onError }: VideoItemProps) {
     const rewardSeconds = 5; // Configurable via Admin realistically
     const accumulatedTimeRef = useRef(0);
 
+    // Double-tap and tap handling
+    const lastTapRef = useRef(0);
+    const tapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Heart overlay animation (double-tap)
+    const [showHeartOverlay, setShowHeartOverlay] = useState(false);
+
+    // Like button bounce animation
+    const [likeBounce, setLikeBounce] = useState(false);
+
+    // Video progress bar
+    const [progress, setProgress] = useState(0);
+
+    // Buffering indicator
+    const [buffering, setBuffering] = useState(false);
+
+    // Comments drawer drag state
+    const drawerRef = useRef<HTMLDivElement>(null);
+    const drawerDragStartY = useRef(0);
+    const drawerCurrentY = useRef(0);
+    const [drawerClosing, setDrawerClosing] = useState(false);
+
     // Track watch time and claim
     useEffect(() => {
         if (!user || rewardClaimed) return;
@@ -51,13 +75,13 @@ export default function VideoItem({ video, onError }: VideoItemProps) {
         const interval = setInterval(() => {
             if (videoRef.current && !videoRef.current.paused) {
                 accumulatedTimeRef.current += 0.1;
-                const progress = Math.min((accumulatedTimeRef.current / rewardSeconds) * 100, 100);
-                setRewardProgress(progress);
+                const prog = Math.min((accumulatedTimeRef.current / rewardSeconds) * 100, 100);
+                setRewardProgress(prog);
 
                 if (accumulatedTimeRef.current >= rewardSeconds) {
                     setRewardClaimed(true);
                     setRewardProgress(100);
-                    
+
                     // Claim API call
                     claimVideoReward(video.id).then(res => {
                         if (res.success) {
@@ -71,12 +95,26 @@ export default function VideoItem({ video, onError }: VideoItemProps) {
         return () => clearInterval(interval);
     }, [user, rewardClaimed, video.id]);
 
+    // isActive control: auto-play/pause based on isActive prop
     useEffect(() => {
+        if (isActive === undefined) return; // If not provided, skip (backward compat)
+
+        if (isActive) {
+            videoRef.current?.play().catch(() => {});
+        } else {
+            videoRef.current?.pause();
+        }
+    }, [isActive]);
+
+    // Legacy IntersectionObserver: only used when isActive is not provided
+    useEffect(() => {
+        if (isActive !== undefined) return; // Skip if parent manages active state
+
         const observer = new IntersectionObserver(
             (entries) => {
                 entries.forEach((entry) => {
                     if (entry.isIntersecting) {
-                        videoRef.current?.play().catch(() => { });
+                        videoRef.current?.play().catch(() => {});
                     } else {
                         videoRef.current?.pause();
                     }
@@ -90,9 +128,43 @@ export default function VideoItem({ video, onError }: VideoItemProps) {
         }
 
         return () => observer.disconnect();
+    }, [isActive]);
+
+    // Video progress bar: timeupdate listener
+    useEffect(() => {
+        const vid = videoRef.current;
+        if (!vid) return;
+
+        const handleTimeUpdate = () => {
+            if (vid.duration && vid.duration > 0) {
+                setProgress((vid.currentTime / vid.duration) * 100);
+            }
+        };
+
+        vid.addEventListener("timeupdate", handleTimeUpdate);
+        return () => vid.removeEventListener("timeupdate", handleTimeUpdate);
     }, []);
 
-    const togglePlay = () => {
+    // Buffering indicator: waiting/playing events
+    useEffect(() => {
+        const vid = videoRef.current;
+        if (!vid) return;
+
+        const handleWaiting = () => setBuffering(true);
+        const handlePlaying = () => setBuffering(false);
+        const handleSeeked = () => setBuffering(false);
+
+        vid.addEventListener("waiting", handleWaiting);
+        vid.addEventListener("playing", handlePlaying);
+        vid.addEventListener("seeked", handleSeeked);
+        return () => {
+            vid.removeEventListener("waiting", handleWaiting);
+            vid.removeEventListener("playing", handlePlaying);
+            vid.removeEventListener("seeked", handleSeeked);
+        };
+    }, []);
+
+    const togglePlay = useCallback(() => {
         if (videoRef.current) {
             if (videoRef.current.paused) {
                 videoRef.current.play();
@@ -100,7 +172,65 @@ export default function VideoItem({ video, onError }: VideoItemProps) {
                 videoRef.current.pause();
             }
         }
-    };
+    }, []);
+
+    // Trigger like logic (shared between double-tap and button)
+    const triggerLike = useCallback(async () => {
+        if (!user) {
+            toast.error("Faça login para curtir vídeos");
+            return;
+        }
+        // If already liked, do nothing on double-tap (only add likes, don't remove via double-tap)
+        if (liked) return;
+
+        setLiked(true);
+        setLikesCount(prev => prev + 1);
+        try {
+            await toggleLike(video.id, user.id);
+        } catch {
+            setLiked(false);
+            setLikesCount(prev => prev - 1);
+            toast.error("Erro ao curtir. Tente novamente.");
+        }
+    }, [user, liked, video.id]);
+
+    // Show heart overlay animation
+    const showHeartAnimation = useCallback(() => {
+        setShowHeartOverlay(true);
+        setTimeout(() => setShowHeartOverlay(false), 800);
+    }, []);
+
+    // Handle video area tap (single = toggle play, double = like)
+    const handleVideoTap = useCallback((e: React.MouseEvent) => {
+        const now = Date.now();
+        const timeSinceLastTap = now - lastTapRef.current;
+
+        if (timeSinceLastTap < 300 && timeSinceLastTap > 0) {
+            // Double-tap detected
+            if (tapTimeoutRef.current) {
+                clearTimeout(tapTimeoutRef.current);
+                tapTimeoutRef.current = null;
+            }
+            lastTapRef.current = 0;
+            triggerLike();
+            showHeartAnimation();
+        } else {
+            // First tap: wait to see if double-tap follows
+            lastTapRef.current = now;
+            tapTimeoutRef.current = setTimeout(() => {
+                // Single tap confirmed
+                togglePlay();
+                tapTimeoutRef.current = null;
+            }, 300);
+        }
+    }, [triggerLike, showHeartAnimation, togglePlay]);
+
+    // Cleanup tap timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (tapTimeoutRef.current) clearTimeout(tapTimeoutRef.current);
+        };
+    }, []);
 
     const handleLike = async (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -109,14 +239,20 @@ export default function VideoItem({ video, onError }: VideoItemProps) {
             return;
         }
         // Optimistic update
+        const wasLiked = liked;
         setLiked(!liked);
-        setLikesCount(prev => liked ? prev - 1 : prev + 1);
+        setLikesCount(prev => wasLiked ? prev - 1 : prev + 1);
+
+        // Bounce animation
+        setLikeBounce(true);
+        setTimeout(() => setLikeBounce(false), 300);
+
         try {
             await toggleLike(video.id, user.id);
         } catch {
             // Revert on error
-            setLiked(liked);
-            setLikesCount(prev => liked ? prev + 1 : prev - 1);
+            setLiked(wasLiked);
+            setLikesCount(prev => wasLiked ? prev + 1 : prev - 1);
             toast.error("Erro ao curtir. Tente novamente.");
         }
     };
@@ -128,13 +264,14 @@ export default function VideoItem({ video, onError }: VideoItemProps) {
             return;
         }
         // Optimistic update
+        const wasBm = bookmarked;
         setBookmarked(!bookmarked);
-        setBookmarkCount(prev => bookmarked ? prev - 1 : prev + 1);
+        setBookmarkCount(prev => wasBm ? prev - 1 : prev + 1);
         try {
             await toggleBookmark(video.id, user.id);
         } catch {
-            setBookmarked(bookmarked);
-            setBookmarkCount(prev => bookmarked ? prev + 1 : prev - 1);
+            setBookmarked(wasBm);
+            setBookmarkCount(prev => wasBm ? prev + 1 : prev - 1);
             toast.error("Erro ao salvar. Tente novamente.");
         }
     };
@@ -166,6 +303,7 @@ export default function VideoItem({ video, onError }: VideoItemProps) {
     const handleOpenComments = async (e: React.MouseEvent) => {
         e.stopPropagation();
         setShowComments(true);
+        setDrawerClosing(false);
         setLoadingComments(true);
         try {
             const data = await getComments(video.id);
@@ -176,6 +314,14 @@ export default function VideoItem({ video, onError }: VideoItemProps) {
             setLoadingComments(false);
         }
     };
+
+    const handleCloseComments = useCallback(() => {
+        setDrawerClosing(true);
+        setTimeout(() => {
+            setShowComments(false);
+            setDrawerClosing(false);
+        }, 300);
+    }, []);
 
     const handleSubmitComment = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -199,36 +345,148 @@ export default function VideoItem({ video, onError }: VideoItemProps) {
         }
     };
 
+    // Drawer drag handlers
+    const handleDrawerTouchStart = useCallback((e: React.TouchEvent) => {
+        drawerDragStartY.current = e.touches[0].clientY;
+        drawerCurrentY.current = 0;
+    }, []);
+
+    const handleDrawerTouchMove = useCallback((e: React.TouchEvent) => {
+        const dy = e.touches[0].clientY - drawerDragStartY.current;
+        if (dy > 0 && drawerRef.current) {
+            drawerCurrentY.current = dy;
+            drawerRef.current.style.transform = `translateY(${dy}px)`;
+        }
+    }, []);
+
+    const handleDrawerTouchEnd = useCallback(() => {
+        if (drawerRef.current) {
+            if (drawerCurrentY.current > 100) {
+                // Dragged far enough: close
+                handleCloseComments();
+            } else {
+                // Snap back
+                drawerRef.current.style.transform = "translateY(0)";
+            }
+            drawerCurrentY.current = 0;
+        }
+    }, [handleCloseComments]);
+
     const formatCount = (n: number): string => {
         if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
         if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
         return n.toString();
     };
 
-    // Discount calculation — computed before JSX to avoid IIFE in render
+    // Discount calculation
     const hasProduct   = !!video.product.id;
     const productPrice = typeof video.product.price === "number" ? video.product.price : parseFloat(String(video.product.price || 0));
     const oldPrice     = video.product.oldPrice ? (typeof video.product.oldPrice === "number" ? video.product.oldPrice : parseFloat(String(video.product.oldPrice))) : undefined;
     const hasDiscount  = !!(oldPrice && oldPrice > productPrice);
     const discountPct  = hasDiscount ? Math.round((1 - productPrice / oldPrice!) * 100) : 0;
 
+    // Preload strategy
+    const preloadAttr = preloadLevel === "full" ? "auto" : preloadLevel === "next" ? "metadata" : "none";
+    const renderVideoSrc = preloadLevel !== "none";
+
     return (
         <div className="relative h-full w-full bg-black">
             {/* Video Element */}
             <video
                 ref={videoRef}
-                src={video.url}
+                src={renderVideoSrc ? video.url : undefined}
                 className="h-full w-full object-cover"
                 loop
                 playsInline
                 muted={muted}
-                onClick={togglePlay}
-                preload="metadata"
+                onClick={handleVideoTap}
+                preload={preloadAttr}
                 onError={() => onError?.()}
             />
 
+            {/* Black background for preloadLevel "none" */}
+            {!renderVideoSrc && (
+                <div className="absolute inset-0 bg-black" />
+            )}
+
+            {/* Buffering Indicator */}
+            {buffering && (
+                <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+                    <div className="bg-black/30 backdrop-blur-sm rounded-full p-3">
+                        <Loader2 className="w-8 h-8 text-white animate-spin" />
+                    </div>
+                </div>
+            )}
+
+            {/* Heart Overlay Animation (double-tap) */}
+            {showHeartOverlay && (
+                <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
+                    <Heart
+                        className="w-24 h-24 text-red-500 fill-current"
+                        style={{
+                            animation: "heartPop 0.8s ease-out forwards",
+                        }}
+                    />
+                </div>
+            )}
+
+            {/* Keyframe styles (injected via style tag) */}
+            <style jsx>{`
+                @keyframes heartPop {
+                    0% {
+                        opacity: 1;
+                        transform: scale(0.2);
+                    }
+                    30% {
+                        opacity: 1;
+                        transform: scale(1.2);
+                    }
+                    50% {
+                        opacity: 1;
+                        transform: scale(1);
+                    }
+                    100% {
+                        opacity: 0;
+                        transform: scale(1.3);
+                    }
+                }
+                @keyframes likeBounce {
+                    0% { transform: scale(1); }
+                    40% { transform: scale(1.3); }
+                    100% { transform: scale(1); }
+                }
+                @keyframes pulseBtn {
+                    0%, 100% {
+                        box-shadow: 0 0 0 0 rgba(244, 106, 37, 0.5);
+                    }
+                    50% {
+                        box-shadow: 0 0 0 6px rgba(244, 106, 37, 0);
+                    }
+                }
+                @keyframes drawerSlideIn {
+                    from { transform: translateY(100%); }
+                    to { transform: translateY(0); }
+                }
+                @keyframes drawerSlideOut {
+                    from { transform: translateY(0); }
+                    to { transform: translateY(100%); }
+                }
+            `}</style>
+
             {/* Overlays */}
             <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/60 pointer-events-none" />
+
+            {/* Video Progress Bar */}
+            <div className="absolute bottom-0 left-0 right-0 z-40 pointer-events-none" style={{ height: "2px" }}>
+                <div
+                    className="h-full transition-[width] duration-200 ease-linear"
+                    style={{
+                        width: `${progress}%`,
+                        backgroundColor: "#f46a25",
+                        opacity: 0.7,
+                    }}
+                />
+            </div>
 
             {/* Coin Reward Float */}
             {user && !rewardClaimed && (
@@ -269,7 +527,10 @@ export default function VideoItem({ video, onError }: VideoItemProps) {
             <div className="absolute right-4 bottom-32 flex flex-col items-center gap-6 z-10">
                 {/* Like */}
                 <div className="flex flex-col items-center gap-1 group cursor-pointer" onClick={handleLike}>
-                    <div className={`p-3 rounded-full backdrop-blur-md transition-all ${liked ? 'bg-primary/20 text-primary scale-110' : 'bg-white/10 text-white group-hover:bg-white/20'}`}>
+                    <div
+                        className={`p-3 rounded-full backdrop-blur-md transition-all ${liked ? 'bg-primary/20 text-primary scale-110' : 'bg-white/10 text-white group-hover:bg-white/20'}`}
+                        style={likeBounce ? { animation: "likeBounce 0.3s ease-out" } : undefined}
+                    >
                         <Heart className={`w-7 h-7 ${liked ? 'fill-current' : ''}`} />
                     </div>
                     <span className="text-[10px] font-bold shadow-sm">{formatCount(likesCount)}</span>
@@ -377,10 +638,11 @@ export default function VideoItem({ video, onError }: VideoItemProps) {
                             )}
                         </div>
 
-                        {/* CTA */}
+                        {/* CTA with pulse animation */}
                         <Link
                             href={`/checkout?id=${video.product.id}`}
                             className="bg-[#f46a25] hover:bg-[#f46a25]/90 text-white px-3 py-2.5 rounded-xl text-[10px] font-black transition-all active:scale-95 whitespace-nowrap uppercase tracking-wide shadow-lg shadow-[#f46a25]/30"
+                            style={{ animation: "pulseBtn 2s ease-in-out infinite" }}
                         >
                             Comprar
                         </Link>
@@ -390,16 +652,30 @@ export default function VideoItem({ video, onError }: VideoItemProps) {
 
             {/* Comments Drawer */}
             {showComments && (
-                <div className="absolute inset-0 z-50 flex flex-col justify-end" onClick={() => setShowComments(false)}>
-                    <div className="absolute inset-0 bg-black/50" />
+                <div className="absolute inset-0 z-50 flex flex-col justify-end" onClick={handleCloseComments}>
+                    <div className="absolute inset-0 bg-black/50 transition-opacity duration-300" style={{ opacity: drawerClosing ? 0 : 1 }} />
                     <div
-                        className="relative bg-background-dark rounded-t-3xl max-h-[60vh] flex flex-col border-t border-white/10 animate-in slide-in-from-bottom duration-300"
+                        ref={drawerRef}
+                        className="relative bg-background-dark rounded-t-3xl max-h-[60vh] flex flex-col border-t border-white/10"
+                        style={{
+                            animation: drawerClosing
+                                ? "drawerSlideOut 0.3s ease-in forwards"
+                                : "drawerSlideIn 0.3s ease-out forwards",
+                        }}
                         onClick={(e) => e.stopPropagation()}
+                        onTouchStart={handleDrawerTouchStart}
+                        onTouchMove={handleDrawerTouchMove}
+                        onTouchEnd={handleDrawerTouchEnd}
                     >
+                        {/* Drag Handle */}
+                        <div className="flex justify-center pt-3 pb-1 cursor-grab">
+                            <div className="w-10 h-1 bg-white/20 rounded-full" />
+                        </div>
+
                         {/* Header */}
-                        <div className="flex items-center justify-between p-4 border-b border-white/10">
+                        <div className="flex items-center justify-between px-4 pb-3 border-b border-white/10">
                             <h3 className="font-bold text-sm">{commentsCount} comentários</h3>
-                            <button onClick={() => setShowComments(false)} className="p-1 hover:bg-white/10 rounded-full transition-colors">
+                            <button onClick={handleCloseComments} className="p-1 hover:bg-white/10 rounded-full transition-colors">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>

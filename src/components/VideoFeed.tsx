@@ -8,6 +8,33 @@ import Link from "next/link";
 import type { VideoFeedItem } from "@/lib/types";
 import { Loader2 } from "lucide-react";
 
+const WINDOW_BEFORE = 1;
+const WINDOW_AFTER = 2;
+
+function getPreloadLevel(
+    index: number,
+    currentIndex: number
+): "full" | "next" | "none" {
+    if (index === currentIndex) return "full";
+    const distance = Math.abs(index - currentIndex);
+    if (distance === 1) return "next";
+    return "none";
+}
+
+function LoadingSkeleton() {
+    return (
+        <div className="flex items-center justify-center h-screen bg-background-dark">
+            <div className="w-full h-full flex flex-col items-center justify-center gap-4">
+                <div className="w-3/4 h-3/4 rounded-2xl bg-white/5 animate-pulse" />
+                <div className="flex flex-col items-center gap-2 w-3/4">
+                    <div className="h-4 w-2/3 rounded bg-white/10 animate-pulse" />
+                    <div className="h-3 w-1/2 rounded bg-white/5 animate-pulse" />
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function VideoFeed() {
     const { user } = useAuth();
     const [videos, setVideos] = useState<VideoFeedItem[]>([]);
@@ -15,8 +42,15 @@ export default function VideoFeed() {
     const [loadingMore, setLoadingMore] = useState(false);
     const [hasMore, setHasMore] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const pageRef = useRef(0);
     const sentinelRef = useRef<HTMLDivElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const itemRefs = useRef<Map<number, HTMLElement>>(new Map());
+    const touchStartY = useRef(0);
+    const pullDistance = useRef(0);
+    const [pullOffset, setPullOffset] = useState(0);
 
     const loadVideos = useCallback(async (page: number, append: boolean = false) => {
         try {
@@ -45,11 +79,46 @@ export default function VideoFeed() {
         setVideos(prev => prev.filter(v => v.id !== videoId));
     }, []);
 
+    const handleRefresh = useCallback(async () => {
+        setIsRefreshing(true);
+        pageRef.current = 0;
+        await loadVideos(0);
+        setCurrentIndex(0);
+        setIsRefreshing(false);
+    }, [loadVideos]);
+
     // Initial load
     useEffect(() => {
         pageRef.current = 0;
         loadVideos(0);
     }, [loadVideos]);
+
+    // Track current video via IntersectionObserver
+    useEffect(() => {
+        if (videos.length === 0) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                for (const entry of entries) {
+                    if (entry.isIntersecting) {
+                        const index = Number(
+                            (entry.target as HTMLElement).dataset.videoIndex
+                        );
+                        if (!isNaN(index)) {
+                            setCurrentIndex(index);
+                        }
+                    }
+                }
+            },
+            { threshold: 0.6 }
+        );
+
+        itemRefs.current.forEach((el) => {
+            observer.observe(el);
+        });
+
+        return () => observer.disconnect();
+    }, [videos]);
 
     // Infinite scroll with IntersectionObserver
     useEffect(() => {
@@ -69,12 +138,68 @@ export default function VideoFeed() {
         return () => observer.disconnect();
     }, [hasMore, loadingMore, loadVideos]);
 
+    // Pull-to-refresh touch handlers
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        const onTouchStart = (e: TouchEvent) => {
+            if (container.scrollTop === 0) {
+                touchStartY.current = e.touches[0].clientY;
+            } else {
+                touchStartY.current = 0;
+            }
+            pullDistance.current = 0;
+        };
+
+        const onTouchMove = (e: TouchEvent) => {
+            if (touchStartY.current === 0 || isRefreshing) return;
+            const delta = e.touches[0].clientY - touchStartY.current;
+            if (delta > 0 && container.scrollTop === 0) {
+                pullDistance.current = Math.min(delta * 0.4, 100);
+                setPullOffset(pullDistance.current);
+                if (delta > 20) e.preventDefault();
+            }
+        };
+
+        const onTouchEnd = () => {
+            if (pullDistance.current > 60 && !isRefreshing) {
+                handleRefresh();
+            }
+            pullDistance.current = 0;
+            setPullOffset(0);
+            touchStartY.current = 0;
+        };
+
+        container.addEventListener("touchstart", onTouchStart, { passive: true });
+        container.addEventListener("touchmove", onTouchMove, { passive: false });
+        container.addEventListener("touchend", onTouchEnd, { passive: true });
+
+        return () => {
+            container.removeEventListener("touchstart", onTouchStart);
+            container.removeEventListener("touchmove", onTouchMove);
+            container.removeEventListener("touchend", onTouchEnd);
+        };
+    }, [isRefreshing, handleRefresh]);
+
+    // Register item ref callback
+    const setItemRef = useCallback(
+        (index: number) => (el: HTMLElement | null) => {
+            if (el) {
+                itemRefs.current.set(index, el);
+            } else {
+                itemRefs.current.delete(index);
+            }
+        },
+        []
+    );
+
+    // Compute virtual window boundaries
+    const windowStart = Math.max(0, currentIndex - WINDOW_BEFORE);
+    const windowEnd = Math.min(videos.length - 1, currentIndex + WINDOW_AFTER);
+
     if (loading) {
-        return (
-            <div className="flex items-center justify-center h-screen bg-background-dark text-primary">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-            </div>
-        );
+        return <LoadingSkeleton />;
     }
 
     if (error) {
@@ -109,12 +234,57 @@ export default function VideoFeed() {
     }
 
     return (
-        <div className="video-container h-screen overflow-y-scroll snap-y snap-mandatory bg-black">
-            {videos.map((video) => (
-                <section key={video.id} className="snap-start h-screen">
-                    <VideoItem video={video} onError={() => handleVideoError(video.id)} />
-                </section>
-            ))}
+        <div
+            ref={containerRef}
+            className="video-container h-screen overflow-y-scroll snap-y snap-mandatory bg-black"
+        >
+            {/* Pull-to-refresh indicator */}
+            {pullOffset > 0 && (
+                <div
+                    className="flex items-center justify-center bg-black transition-all"
+                    style={{ height: `${pullOffset}px` }}
+                >
+                    <Loader2
+                        className="w-6 h-6 text-primary"
+                        style={{
+                            opacity: Math.min(pullOffset / 60, 1),
+                            transform: `rotate(${pullOffset * 3}deg)`,
+                        }}
+                    />
+                </div>
+            )}
+
+            {isRefreshing && (
+                <div className="flex items-center justify-center h-12 bg-black">
+                    <Loader2 className="w-6 h-6 text-primary animate-spin" />
+                </div>
+            )}
+
+            {videos.map((video, index) => {
+                const isInWindow = index >= windowStart && index <= windowEnd;
+                const preloadLevel = getPreloadLevel(index, currentIndex);
+                const isActive = index === currentIndex;
+
+                return (
+                    <section
+                        key={video.id}
+                        ref={setItemRef(index)}
+                        data-video-index={index}
+                        className="snap-start h-screen"
+                    >
+                        {isInWindow ? (
+                            <VideoItem
+                                video={video}
+                                isActive={isActive}
+                                preloadLevel={preloadLevel}
+                                onError={() => handleVideoError(video.id)}
+                            />
+                        ) : (
+                            <div className="h-screen bg-black" />
+                        )}
+                    </section>
+                );
+            })}
 
             {/* Sentinel for infinite scroll */}
             {hasMore && (
