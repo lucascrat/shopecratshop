@@ -107,14 +107,17 @@ export async function POST(request: NextRequest) {
         const idEnvio = `teste${Date.now()}`;
         const desc = description || "Teste PIX Shopcrat";
 
-        const pixSendBody = {
+        // Build body based on optional fields from request
+        const { favoritoCpf, semInfoPagador } = body;
+        const pixSendBody: any = {
             valor: amount.toFixed(2),
             pagador: {
                 chave: platformPixKey,
-                infoPagador: desc,
+                ...(semInfoPagador ? {} : { infoPagador: desc }),
             },
             favorecido: {
                 chave: pixKey,
+                ...(favoritoCpf ? { cpf: favoritoCpf } : {}),
             },
         };
 
