@@ -17,12 +17,21 @@ interface EfiCredentials {
 
 // Get credentials from platform_settings (with env var fallback)
 async function getCredentials(): Promise<EfiCredentials> {
-    const [clientId, clientSecret, sandbox, pixKey] = await Promise.all([
-        getPlatformSetting("efi_client_id"),
-        getPlatformSetting("efi_client_secret"),
-        getPlatformSetting("efi_sandbox"),
-        getPlatformSetting("efi_pix_key"),
-    ]);
+    // Try DB first; fall back to env vars gracefully if DB is unavailable
+    let clientId: string | null = null;
+    let clientSecret: string | null = null;
+    let sandbox: string | null = null;
+    let pixKey: string | null = null;
+    try {
+        [clientId, clientSecret, sandbox, pixKey] = await Promise.all([
+            getPlatformSetting("efi_client_id"),
+            getPlatformSetting("efi_client_secret"),
+            getPlatformSetting("efi_sandbox"),
+            getPlatformSetting("efi_pix_key"),
+        ]);
+    } catch {
+        // DB unavailable — use env vars only
+    }
 
     const finalClientId     = clientId     || process.env.EFI_CLIENT_ID     || "";
     const finalClientSecret = clientSecret || process.env.EFI_CLIENT_SECRET || "";
