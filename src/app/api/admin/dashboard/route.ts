@@ -6,68 +6,63 @@ export async function GET(request: NextRequest) {
     try {
         await requireAdmin(request);
 
-        // Parallel queries for dashboard stats
+        // Get stats in parallel
         const [
             revenueResult,
             ordersResult,
             merchantsResult,
             customersResult,
             pendingWithdrawalsResult,
-            todayResult,
-            recentOrdersResult,
-            recentWithdrawalsResult,
+            todayStatsResult,
+            recentOrdersResult
         ] = await Promise.all([
-            // Total revenue (paid orders)
-            query(`SELECT COALESCE(SUM(total), 0) as total FROM orders WHERE status != 'cancelled'`),
-            // Total orders
-            query(`SELECT COUNT(*) as count FROM orders`),
-            // Total merchants
-            query(`SELECT COUNT(*) as count FROM profiles WHERE role = 'merchant'`),
-            // Total customers
-            query(`SELECT COUNT(*) as count FROM profiles WHERE role = 'customer'`),
-            // Pending withdrawals
-            query(`SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM withdrawal_requests WHERE status IN ('pending', 'processing')`),
-            // Today stats
-            query(`SELECT COUNT(*) as orders, COALESCE(SUM(total), 0) as revenue FROM orders WHERE created_at >= CURRENT_DATE AND status != 'cancelled'`),
-            // Recent orders with details
+            // Total Revenue (Only PAID orders)
+            query("SELECT COALESCE(SUM(total), 0) as total FROM orders WHERE payment_status = 'paid'"),
+            // Total Orders count (All non-cancelled)
+            query("SELECT COUNT(*) as count FROM orders WHERE status != 'cancelled'"),
+            // Total Merchants
+            query("SELECT COUNT(*) as count FROM profiles WHERE role = 'merchant'"),
+            // Total Customers
+            query("SELECT COUNT(*) as count FROM profiles WHERE role = 'customer'"),
+            // Pending withdrawals (case-insensitive check for status)
+            query(`SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM withdrawal_requests WHERE LOWER(status) IN ('pending', 'processing', 'pendente')`),
+            // Today stats (Orders created in the last 24 hours or today)
             query(`
-                SELECT o.*,
-                    p.name as product_name,
-                    pr.full_name as customer_name,
-                    pr.username as customer_username,
-                    s.name as store_name
+                SELECT 
+                    COUNT(*) as orders, 
+                    COALESCE(SUM(total), 0) as revenue 
+                FROM orders 
+                WHERE created_at >= CURRENT_DATE 
+                  AND payment_status = 'paid'
+            `),
+            // Recent orders for activity feed
+            query(`
+                SELECT o.*, p.name as product_name, pr.full_name as customer_name
                 FROM orders o
                 LEFT JOIN products p ON o.product_id = p.id
                 LEFT JOIN profiles pr ON o.user_id = pr.id
-                LEFT JOIN stores s ON o.store_id = s.id
                 ORDER BY o.created_at DESC
                 LIMIT 10
             `),
-            // Recent withdrawals
-            query(`
-                SELECT wr.*,
-                    pr.full_name as merchant_name,
-                    pr.username as merchant_username,
-                    s.name as store_name
-                FROM withdrawal_requests wr
-                LEFT JOIN profiles pr ON wr.merchant_id = pr.id
-                LEFT JOIN stores s ON s.merchant_id = wr.merchant_id
-                ORDER BY wr.created_at DESC
-                LIMIT 10
-            `),
         ]);
+
+        console.log("[Dashboard API] Debug:", {
+            rawRevenue: revenueResult.rows[0].total,
+            rawOrders: ordersResult.rows[0].count,
+            rawPending: pendingWithdrawalsResult.rows[0].total,
+            rowCountOrders: ordersResult.rowCount
+        });
 
         return NextResponse.json({
             totalRevenue: parseFloat(revenueResult.rows[0].total),
             totalOrders: parseInt(ordersResult.rows[0].count),
             totalMerchants: parseInt(merchantsResult.rows[0].count),
             totalCustomers: parseInt(customersResult.rows[0].count),
-            pendingWithdrawals: parseInt(pendingWithdrawalsResult.rows[0].count),
             pendingWithdrawalsAmount: parseFloat(pendingWithdrawalsResult.rows[0].total),
-            todayOrders: parseInt(todayResult.rows[0].orders),
-            todayRevenue: parseFloat(todayResult.rows[0].revenue),
-            recentOrders: recentOrdersResult.rows,
-            recentWithdrawals: recentWithdrawalsResult.rows,
+            pendingWithdrawalsCount: parseInt(pendingWithdrawalsResult.rows[0].count),
+            todayRevenue: parseFloat(todayStatsResult.rows[0].revenue),
+            todayOrders: parseInt(todayStatsResult.rows[0].orders),
+            recentOrders: recentOrdersResult.rows
         });
     } catch (err: any) {
         const status = err.message.includes("autorizado") || err.message.includes("negado") ? 403 : 500;
