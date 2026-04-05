@@ -39,7 +39,7 @@ export async function PATCH(request: NextRequest) {
     try {
         const user = requireAuth(request);
         const body = await request.json();
-        const { productId, price, oldPrice, stock, name, description, acceptPix, acceptCard, acceptPayOnDelivery, acceptStorePickup } = body;
+        const { productId, price, oldPrice, stock, name, description, acceptPix, acceptCard, acceptPayOnDelivery, acceptStorePickup, promoPrice, promoStart, promoEnd, promoLabel } = body;
 
         if (!productId) {
             return NextResponse.json({ error: "productId é obrigatório" }, { status: 400 });
@@ -79,6 +79,22 @@ export async function PATCH(request: NextRequest) {
         if (description !== undefined) {
             params.push(description);
             updates.push(`description = $${params.length}`);
+        }
+        if (promoPrice !== undefined) {
+            params.push(promoPrice === null ? null : parseFloat(promoPrice));
+            updates.push(`promo_price = $${params.length}`);
+        }
+        if (promoStart !== undefined) {
+            params.push(promoStart || null);
+            updates.push(`promo_start = $${params.length}`);
+        }
+        if (promoEnd !== undefined) {
+            params.push(promoEnd || null);
+            updates.push(`promo_end = $${params.length}`);
+        }
+        if (promoLabel !== undefined) {
+            params.push(promoLabel || null);
+            updates.push(`promo_label = $${params.length}`);
         }
 
         if (updates.length === 0) {

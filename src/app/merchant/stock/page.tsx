@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import {
     Package, Plus, Search, Loader2, ChevronDown, Edit2, Trash2,
     Save, X, QrCode, CreditCard, Truck, Store, TrendingUp,
-    LayoutDashboard, Video, BarChart3, ArrowLeft, AlertTriangle,
+    LayoutDashboard, Video, BarChart3, ArrowLeft, AlertTriangle, Flame,
 } from "lucide-react";
 
 interface Product {
@@ -24,6 +24,10 @@ interface Product {
     images: string[];
     sales_count: number;
     created_at: string;
+    promo_price: number | null;
+    promo_start: string | null;
+    promo_end: string | null;
+    promo_label: string | null;
 }
 
 interface StoreSettings {
@@ -63,7 +67,20 @@ export default function MerchantStock() {
         oldPrice: "",
         stock: "",
         description: "",
+        promoEnabled: false,
+        promoPrice: "",
+        promoStart: "",
+        promoEnd: "",
+        promoLabel: "",
+        promoLabelCustom: "",
     });
+
+    const PROMO_LABEL_PRESETS = [
+        "Flash Sale",
+        "Queima de Estoque",
+        "Oferta Relâmpago",
+        "Black Friday",
+    ];
 
     const fetchProducts = async () => {
         setLoading(true);
@@ -77,6 +94,10 @@ export default function MerchantStock() {
                     price: parseFloat(String(p.price || 0)),
                     old_price: p.old_price ? parseFloat(String(p.old_price)) : null,
                     sales_count: parseInt(String(p.sales_count || 0)),
+                    promo_price: p.promo_price ? parseFloat(String(p.promo_price)) : null,
+                    promo_start: p.promo_start || null,
+                    promo_end: p.promo_end || null,
+                    promo_label: p.promo_label || null,
                 }))
             );
             setStoreId(res.storeId || null);
@@ -105,23 +126,32 @@ export default function MerchantStock() {
 
     const startEdit = (product: Product) => {
         setEditingId(product.id);
+        const hasPromo = !!(product.promo_price || product.promo_start || product.promo_end || product.promo_label);
+        const labelIsPreset = product.promo_label && PROMO_LABEL_PRESETS.includes(product.promo_label);
         setEditForm({
             name: product.name,
             price: product.price.toFixed(2),
             oldPrice: product.old_price ? product.old_price.toFixed(2) : "",
             stock: String(product.stock),
             description: product.description || "",
+            promoEnabled: hasPromo,
+            promoPrice: product.promo_price ? product.promo_price.toFixed(2) : "",
+            promoStart: product.promo_start ? product.promo_start.slice(0, 16) : "",
+            promoEnd: product.promo_end ? product.promo_end.slice(0, 16) : "",
+            promoLabel: labelIsPreset ? product.promo_label! : (product.promo_label ? "__custom__" : ""),
+            promoLabelCustom: labelIsPreset ? "" : (product.promo_label || ""),
         });
     };
 
     const cancelEdit = () => {
         setEditingId(null);
-        setEditForm({ name: "", price: "", oldPrice: "", stock: "", description: "" });
+        setEditForm({ name: "", price: "", oldPrice: "", stock: "", description: "", promoEnabled: false, promoPrice: "", promoStart: "", promoEnd: "", promoLabel: "", promoLabelCustom: "" });
     };
 
     const saveProduct = async (productId: string) => {
         setSaving(true);
         try {
+            const resolvedLabel = editForm.promoLabel === "__custom__" ? editForm.promoLabelCustom : editForm.promoLabel;
             const res = await apiFetch<{ product: any }>("/api/merchant/products", {
                 method: "PATCH",
                 body: JSON.stringify({
@@ -131,6 +161,10 @@ export default function MerchantStock() {
                     oldPrice: editForm.oldPrice || null,
                     stock: editForm.stock,
                     description: editForm.description,
+                    promoPrice: editForm.promoEnabled && editForm.promoPrice ? editForm.promoPrice : null,
+                    promoStart: editForm.promoEnabled && editForm.promoStart ? new Date(editForm.promoStart).toISOString() : null,
+                    promoEnd: editForm.promoEnabled && editForm.promoEnd ? new Date(editForm.promoEnd).toISOString() : null,
+                    promoLabel: editForm.promoEnabled && resolvedLabel ? resolvedLabel : null,
                 }),
             });
             setProducts((prev) =>
@@ -143,6 +177,10 @@ export default function MerchantStock() {
                             old_price: res.product.old_price ? parseFloat(String(res.product.old_price)) : null,
                             stock: parseInt(String(res.product.stock)),
                             description: res.product.description,
+                            promo_price: res.product.promo_price ? parseFloat(String(res.product.promo_price)) : null,
+                            promo_start: res.product.promo_start || null,
+                            promo_end: res.product.promo_end || null,
+                            promo_label: res.product.promo_label || null,
                         }
                         : p
                 )
@@ -362,8 +400,11 @@ export default function MerchantStock() {
                                     ? { label: `${product.stock} restantes`, color: "text-yellow-400 bg-yellow-400/10" }
                                     : { label: `${product.stock} em estoque`, color: "text-green-400 bg-green-400/10" };
 
+                            const promoActive = !!(product.promo_price && product.promo_start && product.promo_end &&
+                                new Date(product.promo_start) <= new Date() && new Date(product.promo_end) >= new Date());
+
                             return (
-                                <div key={product.id} className="bg-white/5 rounded-2xl border border-white/5 overflow-hidden">
+                                <div key={product.id} className={`bg-white/5 rounded-2xl border overflow-hidden ${promoActive ? "border-orange-500/40" : "border-white/5"}`}>
                                     {/* Product Row */}
                                     <button
                                         onClick={() => {
@@ -381,17 +422,43 @@ export default function MerchantStock() {
                                                         <Package className="w-6 h-6 text-white/10" />
                                                     </div>
                                                 )}
+                                                {promoActive && (
+                                                    <div className="absolute top-0 right-0 bg-orange-500 p-0.5 rounded-bl-lg">
+                                                        <Flame className="w-3 h-3 text-white" />
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-bold truncate">{product.name}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-sm font-bold truncate">{product.name}</p>
+                                                    {promoActive && product.promo_label && (
+                                                        <span className="flex items-center gap-1 bg-orange-500/20 text-orange-400 text-[7px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-lg whitespace-nowrap">
+                                                            <Flame className="w-2.5 h-2.5" />
+                                                            {product.promo_label}
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <div className="flex items-center gap-2 mt-1">
-                                                    <p className="text-primary font-black text-sm italic">
-                                                        R$ {product.price.toFixed(2)}
-                                                    </p>
-                                                    {product.old_price && (
-                                                        <p className="text-white/20 text-[10px] line-through">
-                                                            R$ {product.old_price.toFixed(2)}
-                                                        </p>
+                                                    {promoActive ? (
+                                                        <>
+                                                            <p className="text-orange-400 font-black text-sm italic">
+                                                                R$ {product.promo_price!.toFixed(2)}
+                                                            </p>
+                                                            <p className="text-white/20 text-[10px] line-through">
+                                                                R$ {product.price.toFixed(2)}
+                                                            </p>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <p className="text-primary font-black text-sm italic">
+                                                                R$ {product.price.toFixed(2)}
+                                                            </p>
+                                                            {product.old_price && (
+                                                                <p className="text-white/20 text-[10px] line-through">
+                                                                    R$ {product.old_price.toFixed(2)}
+                                                                </p>
+                                                            )}
+                                                        </>
                                                     )}
                                                 </div>
                                                 <div className="flex items-center gap-2 mt-1">
@@ -502,6 +569,84 @@ export default function MerchantStock() {
                                                     rows={2}
                                                     className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-primary/50 resize-none"
                                                 />
+                                            </div>
+
+                                            {/* Promo Section */}
+                                            <div className="border-t border-white/5 pt-3">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <Flame className="w-4 h-4 text-orange-400" />
+                                                        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-orange-400">Promoção</span>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setEditForm((f) => ({ ...f, promoEnabled: !f.promoEnabled }))}
+                                                        className={`w-12 h-6 rounded-full transition-all relative ${editForm.promoEnabled ? "bg-orange-500" : "bg-white/10"}`}
+                                                    >
+                                                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${editForm.promoEnabled ? "left-7" : "left-1"}`} />
+                                                    </button>
+                                                </div>
+
+                                                {editForm.promoEnabled && (
+                                                    <div className="space-y-3 bg-orange-500/5 border border-orange-500/10 rounded-xl p-3">
+                                                        <div>
+                                                            <label className="text-[9px] font-black uppercase tracking-wider text-white/30 block mb-1">Preço Promocional (R$)</label>
+                                                            <input
+                                                                type="number"
+                                                                step="0.01"
+                                                                min="0"
+                                                                value={editForm.promoPrice}
+                                                                onChange={(e) => setEditForm((f) => ({ ...f, promoPrice: e.target.value }))}
+                                                                placeholder="Ex: 49.90"
+                                                                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-orange-500/50 placeholder:text-white/10"
+                                                            />
+                                                        </div>
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            <div>
+                                                                <label className="text-[9px] font-black uppercase tracking-wider text-white/30 block mb-1">Início</label>
+                                                                <input
+                                                                    type="datetime-local"
+                                                                    value={editForm.promoStart}
+                                                                    onChange={(e) => setEditForm((f) => ({ ...f, promoStart: e.target.value }))}
+                                                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-orange-500/50 [color-scheme:dark]"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[9px] font-black uppercase tracking-wider text-white/30 block mb-1">Fim</label>
+                                                                <input
+                                                                    type="datetime-local"
+                                                                    value={editForm.promoEnd}
+                                                                    onChange={(e) => setEditForm((f) => ({ ...f, promoEnd: e.target.value }))}
+                                                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-orange-500/50 [color-scheme:dark]"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[9px] font-black uppercase tracking-wider text-white/30 block mb-1">Etiqueta</label>
+                                                            <select
+                                                                value={editForm.promoLabel}
+                                                                onChange={(e) => setEditForm((f) => ({ ...f, promoLabel: e.target.value }))}
+                                                                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-orange-500/50 [color-scheme:dark]"
+                                                            >
+                                                                <option value="">Sem etiqueta</option>
+                                                                {PROMO_LABEL_PRESETS.map((label) => (
+                                                                    <option key={label} value={label}>{label}</option>
+                                                                ))}
+                                                                <option value="__custom__">Personalizada...</option>
+                                                            </select>
+                                                            {editForm.promoLabel === "__custom__" && (
+                                                                <input
+                                                                    type="text"
+                                                                    maxLength={50}
+                                                                    value={editForm.promoLabelCustom}
+                                                                    onChange={(e) => setEditForm((f) => ({ ...f, promoLabelCustom: e.target.value }))}
+                                                                    placeholder="Digite a etiqueta..."
+                                                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-orange-500/50 placeholder:text-white/10 mt-2"
+                                                                />
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             <div className="flex gap-2">
