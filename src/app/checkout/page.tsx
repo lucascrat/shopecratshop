@@ -9,8 +9,12 @@ import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import AuthGate from "@/components/AuthGate";
+import CardPaymentModal from "@/components/CardPaymentModal";
 import { apiFetch } from "@/lib/api";
 import { toast } from "sonner";
+
+const PIX_POLL_INTERVAL_MS = 5000;
+const PIX_POLL_MAX_ATTEMPTS = 120; // 120 × 5s = 10 min
 
 interface CheckoutProduct {
     id: string;
@@ -45,7 +49,7 @@ function CheckoutContent() {
     const searchParams = useSearchParams();
     const productId = searchParams.get("productId") || searchParams.get("id");
     const router = useRouter();
-    const { user } = useAuth();
+    const { user, profile } = useAuth();
 
     const [paymentMethod, setPaymentMethod] = useState<"pix" | "card" | "pay_on_delivery" | "store_pickup">("pix");
     const [loading, setLoading] = useState(false);
@@ -59,16 +63,22 @@ function CheckoutContent() {
         copyPaste: string;
         expiresAt: string;
         txid: string;
+        amount: number;
     } | null>(null);
     const [showPixModal, setShowPixModal] = useState(false);
     const [checkingPix, setCheckingPix] = useState(false);
+    const [pixExpired, setPixExpired] = useState(false);
     const [orderId, setOrderId] = useState<string | null>(null);
     const pixPollRef = useRef<NodeJS.Timeout | null>(null);
+    const pixAttemptsRef = useRef(0);
 
     // Card state
     const [installments, setInstallments] = useState(1);
     const [installmentOptions, setInstallmentOptions] = useState<InstallmentOption[]>([]);
     const [showInstallments, setShowInstallments] = useState(false);
+    const [showCardModal, setShowCardModal] = useState(false);
+    const [cardOrder, setCardOrder] = useState<{ id: string; total: number } | null>(null);
+    const clientRefRef = useRef<string | null>(null);
 
     useEffect(() => {
         if (productId) {
@@ -130,33 +140,49 @@ function CheckoutContent() {
 
         setLoading(true);
         try {
-            // Step 1: Create order
-            const orderRes = await apiFetch<{ order: { id: string } }>("/api/orders", {
+            // Reuse same clientRef across retries for idempotency
+            if (!clientRefRef.current) {
+                clientRefRef.current = (typeof crypto !== "undefined" && "randomUUID" in crypto)
+                    ? crypto.randomUUID()
+                    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            }
+
+            // New /api/orders contract: server computes subtotal, delivery_fee, total.
+            // We only pass productId + paymentMethod + installments + address.
+            const orderRes = await apiFetch<{
+                order: {
+                    id: string;
+                    subtotal: number;
+                    delivery_fee: number;
+                    card_fee: number;
+                    total: number;
+                };
+            }>("/api/orders", {
                 method: "POST",
                 body: JSON.stringify({
                     productId: product.id,
-                    storeId: product.store_id,
                     quantity: 1,
-                    total,
                     paymentMethod,
+                    installments: paymentMethod === "card" ? installments : 1,
                     shippingAddress: paymentMethod === "store_pickup"
                         ? "Retirada na Loja"
                         : "Av. Paulista, 1000 - Apto 42",
+                    clientRef: clientRefRef.current,
                 }),
             });
 
-            const newOrderId = orderRes.order.id;
+            const newOrder = orderRes.order;
+            const newOrderId = newOrder.id;
+            const serverTotal = Number(newOrder.total);
             setOrderId(newOrderId);
 
-            // Step 2: Process payment based on method
+            // Process payment based on method
             if (paymentMethod === "pix") {
-                await handlePixPayment(newOrderId);
+                await handlePixPayment(newOrderId, serverTotal);
             } else if (paymentMethod === "card") {
-                // Card will be handled via Efi tokenization (redirect to success for now)
-                toast.success("Pedido realizado! Pagamento via cartão em processamento.");
-                router.push(`/order-success?orderId=${newOrderId}`);
+                setCardOrder({ id: newOrderId, total: serverTotal });
+                setShowCardModal(true);
             } else {
-                // pay_on_delivery or store_pickup — order created, no immediate payment
                 toast.success(
                     paymentMethod === "pay_on_delivery"
                         ? "Pedido realizado! A maquininha será enviada ao seu endereço."
@@ -172,7 +198,7 @@ function CheckoutContent() {
         }
     };
 
-    const handlePixPayment = async (oid: string) => {
+    const handlePixPayment = async (oid: string, serverTotal: number) => {
         try {
             const pixRes = await apiFetch<{
                 txid: string;
@@ -190,10 +216,11 @@ function CheckoutContent() {
                 copyPaste: pixRes.copyPaste,
                 expiresAt: pixRes.expiresAt,
                 txid: pixRes.txid,
+                amount: serverTotal,
             });
+            setPixExpired(false);
             setShowPixModal(true);
 
-            // Start polling for payment confirmation
             startPixPolling(oid);
         } catch (err: any) {
             toast.error(err.message || "Erro ao gerar PIX");
@@ -202,9 +229,21 @@ function CheckoutContent() {
 
     const startPixPolling = (oid: string) => {
         if (pixPollRef.current) clearInterval(pixPollRef.current);
+        pixAttemptsRef.current = 0;
 
         setCheckingPix(true);
         pixPollRef.current = setInterval(async () => {
+            pixAttemptsRef.current += 1;
+
+            // Time-out: stop polling after MAX_ATTEMPTS and let the user
+            // retry or check later via Meus Pedidos.
+            if (pixAttemptsRef.current > PIX_POLL_MAX_ATTEMPTS) {
+                if (pixPollRef.current) clearInterval(pixPollRef.current);
+                setCheckingPix(false);
+                setPixExpired(true);
+                return;
+            }
+
             try {
                 const status = await apiFetch<{ paid: boolean; status: string }>(
                     `/api/payments/pix/status?orderId=${oid}`
@@ -216,9 +255,15 @@ function CheckoutContent() {
                     router.push(`/order-success?orderId=${oid}`);
                 }
             } catch {
-                // ignore polling errors
+                // transient network error — keep polling
             }
-        }, 5000); // Check every 5 seconds
+        }, PIX_POLL_INTERVAL_MS);
+    };
+
+    const resumePixPolling = () => {
+        if (!orderId) return;
+        setPixExpired(false);
+        startPixPolling(orderId);
     };
 
     const copyPixCode = () => {
@@ -557,7 +602,7 @@ function CheckoutContent() {
 
                             <div className="text-center">
                                 <p className="text-2xl font-black italic text-primary">
-                                    R$ {total.toFixed(2)}
+                                    R$ {pixData.amount.toFixed(2)}
                                 </p>
                                 <div className="flex items-center gap-1.5 justify-center mt-1">
                                     <Clock className="w-3 h-3 text-white/20" />
@@ -584,26 +629,59 @@ function CheckoutContent() {
                             </div>
 
                             {/* Status */}
-                            <div className="flex items-center gap-2 bg-yellow-400/10 border border-yellow-400/20 rounded-xl px-4 py-3 w-full">
-                                {checkingPix ? (
-                                    <>
-                                        <Loader2 className="w-4 h-4 text-yellow-400 animate-spin shrink-0" />
-                                        <p className="text-[10px] font-bold text-yellow-400">
-                                            Aguardando pagamento...
+                            {pixExpired ? (
+                                <div className="flex flex-col gap-2 bg-orange-400/10 border border-orange-400/20 rounded-xl px-4 py-3 w-full">
+                                    <div className="flex items-center gap-2">
+                                        <Clock className="w-4 h-4 text-orange-400 shrink-0" />
+                                        <p className="text-[10px] font-bold text-orange-400">
+                                            Ainda não detectamos seu pagamento.
                                         </p>
-                                    </>
-                                ) : (
-                                    <>
-                                        <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
-                                        <p className="text-[10px] font-bold text-green-400">
-                                            Pagamento confirmado!
-                                        </p>
-                                    </>
-                                )}
-                            </div>
+                                    </div>
+                                    <p className="text-[9px] text-white/40 font-bold">
+                                        Se você já pagou, a confirmação aparecerá em Meus Pedidos em alguns minutos.
+                                    </p>
+                                    <button
+                                        onClick={resumePixPolling}
+                                        className="mt-1 bg-white/10 hover:bg-white/20 text-white text-[10px] font-black uppercase tracking-widest py-2 rounded-lg"
+                                    >
+                                        Verificar novamente
+                                    </button>
+                                </div>
+                            ) : checkingPix ? (
+                                <div className="flex items-center gap-2 bg-yellow-400/10 border border-yellow-400/20 rounded-xl px-4 py-3 w-full">
+                                    <Loader2 className="w-4 h-4 text-yellow-400 animate-spin shrink-0" />
+                                    <p className="text-[10px] font-bold text-yellow-400">
+                                        Aguardando pagamento...
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2 bg-green-400/10 border border-green-400/20 rounded-xl px-4 py-3 w-full">
+                                    <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
+                                    <p className="text-[10px] font-bold text-green-400">
+                                        Pagamento confirmado!
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Card Payment Modal */}
+            {cardOrder && (
+                <CardPaymentModal
+                    open={showCardModal}
+                    onClose={() => setShowCardModal(false)}
+                    orderId={cardOrder.id}
+                    amount={cardOrder.total}
+                    installments={installments}
+                    customerName={profile?.full_name || profile?.username || ""}
+                    customerEmail={user?.email || ""}
+                    onSuccess={() => {
+                        setShowCardModal(false);
+                        router.push(`/order-success?orderId=${cardOrder.id}`);
+                    }}
+                />
             )}
         </main>
     );

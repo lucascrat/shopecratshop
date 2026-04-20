@@ -300,6 +300,8 @@ INSERT INTO platform_settings (key, value, description) VALUES
     ('efi_client_secret', '', 'Client Secret da API Efi Bank'),
     ('efi_pix_key', '', 'Chave PIX da conta Efi Bank recebedora'),
     ('efi_sandbox', 'true', 'Modo sandbox da API Efi'),
+    ('efi_webhook_token', '', 'Token compartilhado para validar o webhook Efi (adicione à URL cadastrada)'),
+    ('efi_card_payee_code', '', 'Payee Code (Identificador da Conta) para tokenização de cartão no cliente'),
     ('card_fee_1x', '2.99', 'Taxa cartão 1x (%)'),
     ('card_fee_2x', '4.49', 'Taxa cartão 2x (%)'),
     ('card_fee_3x', '5.49', 'Taxa cartão 3x (%)'),
@@ -336,6 +338,13 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS promo_price DECIMAL(10,2);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS promo_start TIMESTAMPTZ;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS promo_end TIMESTAMPTZ;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS promo_label VARCHAR(50);
+
+-- ================================================
+-- Order idempotency key (client-provided, unique per user)
+-- ================================================
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS client_ref TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_user_client_ref
+    ON orders(user_id, client_ref) WHERE client_ref IS NOT NULL;
 
 -- ================================================
 -- DONE
