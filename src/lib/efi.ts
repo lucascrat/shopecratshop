@@ -298,35 +298,75 @@ export async function createCardCharge(
 // Withdrawal (PIX Transfer)
 // ==========================================
 
+// Send a PIX transfer and confirm its final status.
+//
+// pixSend accepts the request and usually returns status=EM_PROCESSAMENTO —
+// that only means "queued", not "paid". We then poll pixSendDetail to get
+// the real outcome: REALIZADO (success), NAO_REALIZADO (failed, throws so
+// the caller can refund) or a terminal EM_PROCESSAMENTO (rare, returned as
+// "processing" so the admin can reconcile later).
 export async function sendPixTransfer(
     pixKey: string,
     _pixKeyType: string,
     amount: number,
     description: string
-): Promise<{ transferId: string; status: string }> {
+): Promise<{ transferId: string; status: "completed" | "processing"; rawStatus: string }> {
     const { efipay, creds } = await getEfiInstance();
-    try {
-        const idEnvio = `saque${Date.now()}`;
-        const pixSendBody: any = {
-            valor: amount.toFixed(2),
-            pagador: {
-                chave:       creds.pixKey,
-                infoPagador: description,
-            },
-            favorecido: { chave: pixKey },
-        };
 
+    const idEnvio = `saque${Date.now()}`;
+    const pixSendBody: any = {
+        valor: amount.toFixed(2),
+        pagador: {
+            chave:       creds.pixKey,
+            infoPagador: description,
+        },
+        favorecido: { chave: pixKey },
+    };
+
+    let e2eId: string | undefined;
+    try {
         const response = await efipay.pixSend({ idEnvio }, pixSendBody);
-        return {
-            transferId: response.e2eId || idEnvio,
-            status: "completed",
-        };
+        e2eId = response.e2eId;
     } catch (error: any) {
-        console.error("Efi PIX transfer error:", error?.response?.data || error.message);
+        console.error("Efi pixSend error:", error?.response?.data || error.message);
         throw new Error(
             `Erro na transferência PIX: ${error?.response?.data?.mensagem || error.message}`
         );
     }
+
+    if (!e2eId) {
+        throw new Error("Erro na transferência PIX: Efi não retornou e2eId");
+    }
+
+    // Poll for final status. Efi usually resolves within a couple of seconds.
+    // Total budget ≈ 8s (4 attempts × ~2s spacing) — well inside the webhook's
+    // HTTP timeout envelope but long enough to catch the common case.
+    const attempts = [500, 1500, 3000, 3000];
+    let lastStatus = "EM_PROCESSAMENTO";
+
+    for (const delay of attempts) {
+        await new Promise((r) => setTimeout(r, delay));
+        try {
+            const detail = await efipay.pixSendDetail({ e2eid: e2eId });
+            lastStatus = detail.status;
+            if (detail.status === "REALIZADO") {
+                return { transferId: e2eId, status: "completed", rawStatus: detail.status };
+            }
+            if (detail.status === "NAO_REALIZADO") {
+                console.error("[Efi] PIX envio NAO_REALIZADO:", JSON.stringify(detail));
+                throw new Error("PIX recusado pelo banco (NAO_REALIZADO). Verifique a chave PIX do favorecido.");
+            }
+            // else EM_PROCESSAMENTO — keep polling
+        } catch (err: any) {
+            // If pixSendDetail itself errors (network/timeout), break out —
+            // we'll return processing and the admin can reconcile.
+            console.warn("[Efi] pixSendDetail erro (continuando polling):", err?.response?.data || err.message);
+            if (err?.message?.startsWith("PIX recusado")) throw err;
+        }
+    }
+
+    console.warn(`[Efi] PIX envio ${e2eId} ainda EM_PROCESSAMENTO após polling — retornando processing`);
+    return { transferId: e2eId, status: "processing", rawStatus: lastStatus };
 }
 
 // ==========================================

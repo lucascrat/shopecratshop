@@ -104,33 +104,48 @@ export async function POST(request: NextRequest) {
                 `Saque Shopcrat #${withdrawalId.substring(0, 8)}`
             );
 
-            // PIX sent successfully — mark as completed
+            // pixResult.status is 'completed' (REALIZADO) or 'processing' (Efi
+            // still returning EM_PROCESSAMENTO after polling). NAO_REALIZADO
+            // throws inside sendPixTransfer and is handled in the catch below.
+            const isRealized = pixResult.status === "completed";
             const feeInfo = withdrawalFeeFixed > 0
                 ? ` | Taxa: R$ ${withdrawalFeeFixed.toFixed(2)}`
                 : "";
+            const noteSuffix = isRealized ? "" : " (aguardando confirmação Efi)";
             await query(
                 `UPDATE withdrawal_requests SET
-                    status = 'completed',
-                    admin_notes = $1,
+                    status = $1,
+                    admin_notes = $2,
                     processed_at = NOW()
-                WHERE id = $2`,
-                [`PIX automático enviado R$ ${netAmount.toFixed(2)}. e2eId: ${pixResult.transferId}${feeInfo}`, withdrawalId]
+                WHERE id = $3`,
+                [
+                    isRealized ? "completed" : "processing",
+                    `PIX automático enviado R$ ${netAmount.toFixed(2)}. e2eId: ${pixResult.transferId}${feeInfo}${noteSuffix}`,
+                    withdrawalId,
+                ]
             );
 
-            await query(
-                `UPDATE wallets SET total_withdrawn = total_withdrawn + $1, updated_at = NOW()
-                WHERE id = $2`,
-                [amount, wallet.id]
-            );
+            // Only increment total_withdrawn when Efi confirmed REALIZADO.
+            if (isRealized) {
+                await query(
+                    `UPDATE wallets SET total_withdrawn = total_withdrawn + $1, updated_at = NOW()
+                    WHERE id = $2`,
+                    [amount, wallet.id]
+                );
+            }
 
-            await query(
-                `UPDATE wallet_transactions SET status = 'completed'
-                WHERE wallet_id = $1 AND type = 'withdrawal' AND status = 'pending'
-                AND amount = $2`,
-                [wallet.id, amount]
-            );
+            // wallet_transactions: completed on realized, leave as pending when
+            // still processing (admin reconciles later).
+            if (isRealized) {
+                await query(
+                    `UPDATE wallet_transactions SET status = 'completed'
+                    WHERE wallet_id = $1 AND type = 'withdrawal' AND status = 'pending'
+                    AND amount = $2`,
+                    [wallet.id, amount]
+                );
+            }
 
-            console.log(`[Withdraw] PIX automático: R$ ${amount} (líquido R$ ${netAmount}) → ${wallet.pix_key} (e2eId: ${pixResult.transferId})`);
+            console.log(`[Withdraw] PIX ${pixResult.rawStatus}: R$ ${amount} (líquido R$ ${netAmount}) → ${wallet.pix_key} (e2eId: ${pixResult.transferId})`);
 
             const feeMsg = withdrawalFeeFixed > 0
                 ? ` (taxa R$ ${withdrawalFeeFixed.toFixed(2)}, líquido R$ ${netAmount.toFixed(2)})`
@@ -139,7 +154,10 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({
                 success: true,
                 method: "automatic",
-                message: `PIX de R$ ${netAmount.toFixed(2)} enviado automaticamente!${feeMsg} O valor cairá na sua conta em instantes.`,
+                status: pixResult.status,
+                message: isRealized
+                    ? `PIX de R$ ${netAmount.toFixed(2)} enviado automaticamente!${feeMsg} O valor cairá na sua conta em instantes.`
+                    : `Solicitação de R$ ${netAmount.toFixed(2)} registrada, mas a Efi ainda está processando. Acompanhe em Histórico de Saques — se não cair em até 30 minutos, fale com o suporte.`,
                 transferId: pixResult.transferId,
                 grossAmount: amount,
                 fee: withdrawalFeeFixed,
