@@ -81,9 +81,11 @@ export async function POST(request: NextRequest) {
             const feeNote = withdrawalFeeFixed > 0
                 ? ` (taxa R$ ${withdrawalFeeFixed.toFixed(2)}, enviado R$ ${netAmount.toFixed(2)})`
                 : "";
+            // Status 'pending' matches wallet_transactions_status_check.
+            // (withdrawal_requests uses 'processing' — different constraint set.)
             await query(
                 `INSERT INTO wallet_transactions (wallet_id, type, amount, description, status)
-                VALUES ($1, 'withdrawal', $2, $3, 'processing')`,
+                VALUES ($1, 'withdrawal', $2, $3, 'pending')`,
                 [wallet.id, amount, `Saque automático via PIX${feeNote}`]
             );
 
@@ -123,7 +125,7 @@ export async function POST(request: NextRequest) {
 
             await query(
                 `UPDATE wallet_transactions SET status = 'completed'
-                WHERE wallet_id = $1 AND type = 'withdrawal' AND status = 'processing'
+                WHERE wallet_id = $1 AND type = 'withdrawal' AND status = 'pending'
                 AND amount = $2`,
                 [wallet.id, amount]
             );
@@ -165,7 +167,7 @@ export async function POST(request: NextRequest) {
             // Mark transaction as failed
             await query(
                 `UPDATE wallet_transactions SET status = 'failed', description = $1
-                WHERE wallet_id = $2 AND type = 'withdrawal' AND status = 'processing'
+                WHERE wallet_id = $2 AND type = 'withdrawal' AND status = 'pending'
                 AND amount = $3`,
                 [`Saque falhou: ${pixError.message}`, wallet.id, amount]
             );
