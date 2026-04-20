@@ -2,9 +2,12 @@
 
 import { Home, Search, Plus, MessageCircle, User, LayoutDashboard, Package, Video, BarChart3, Coins } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { useRef, useState, useEffect } from "react";
+import type { ComponentType, SVGProps } from "react";
+import type { Profile } from "@/lib/types";
 
 const LONG_PRESS_DURATION_MS = 3000;
 const INTERVAL_MS = 300;
@@ -51,20 +54,20 @@ export default function BottomNav() {
         { label: "Analítico", icon: BarChart3, href: "/merchant/analytics" },
     ];
 
-    // Customer nav items (logged in)
+    // Customer nav items (logged in) — profile uses avatar
     const customerItems = [
         { label: "Início", icon: Home, href: "/" },
         { label: "Explorar", icon: Search, href: "/search" },
         { label: "Carteira", icon: Coins, href: "/wallet" },
         { label: "Mensagens", icon: MessageCircle, href: "/messages" },
-        { label: "Perfil", icon: User, href: "/profile" },
+        { label: "Perfil", icon: User, href: "/profile", isAvatar: true },
     ];
 
-    // Visitor nav items (not logged in) — can browse feed & explore, rest goes to login
+    // Visitor nav items (not logged in) — feed + explore are public, profile tab goes to login
     const visitorItems = [
         { label: "Início", icon: Home, href: "/" },
         { label: "Explorar", icon: Search, href: "/search" },
-        { label: "Entrar", icon: User, href: "/login" },
+        { label: "Perfil", icon: User, href: "/login", isAvatar: true },
     ];
 
     const navItems = isMerchant ? merchantItems : isLoggedIn ? customerItems : visitorItems;
@@ -116,6 +119,19 @@ export default function BottomNav() {
                             className="bg-primary hover:bg-primary/90 p-3 rounded-2xl -mt-10 shadow-lg shadow-primary/20 transform active:scale-95 transition-all outline outline-4 outline-black"
                         >
                             <Icon className="w-7 h-7 text-white stroke-[3px]" />
+                        </Link>
+                    );
+                }
+
+                if ("isAvatar" in item && item.isAvatar) {
+                    return (
+                        <Link
+                            key={item.label}
+                            href={item.href}
+                            className={`flex flex-col items-center gap-1 transition-colors ${isActive ? 'text-primary' : 'text-white/50 hover:text-white'}`}
+                        >
+                            <ProfileAvatar profile={profile} isActive={isActive} FallbackIcon={Icon} />
+                            <span className="text-[10px] font-bold uppercase tracking-wider">{item.label}</span>
                         </Link>
                     );
                 }
@@ -181,5 +197,48 @@ export default function BottomNav() {
                 />
             </div>
         </nav>
+    );
+}
+
+function ProfileAvatar({
+    profile,
+    isActive,
+    FallbackIcon,
+}: {
+    profile: Profile | null;
+    isActive: boolean;
+    FallbackIcon: ComponentType<SVGProps<SVGSVGElement>>;
+}) {
+    const ring = isActive ? "ring-2 ring-primary" : "ring-1 ring-white/20";
+    const baseClass = `w-7 h-7 rounded-full overflow-hidden flex items-center justify-center bg-white/10 ${ring}`;
+
+    if (profile?.avatar_url) {
+        return (
+            <div className={baseClass}>
+                <Image
+                    src={profile.avatar_url}
+                    alt={profile.username || "Perfil"}
+                    width={28}
+                    height={28}
+                    className="w-full h-full object-cover"
+                />
+            </div>
+        );
+    }
+
+    if (profile?.username) {
+        return (
+            <div className={baseClass}>
+                <span className="text-[11px] font-bold text-white uppercase">
+                    {profile.username.charAt(0)}
+                </span>
+            </div>
+        );
+    }
+
+    return (
+        <div className={baseClass}>
+            <FallbackIcon className="w-4 h-4 text-white/80" />
+        </div>
     );
 }

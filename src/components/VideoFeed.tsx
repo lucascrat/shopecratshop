@@ -217,6 +217,7 @@ export default function VideoFeed() {
     }
 
     if (videos.length === 0) {
+        const isMerchant = user?.role === "merchant";
         return (
             <div className="flex flex-col items-center justify-center h-screen bg-background-dark text-white p-8 text-center">
                 <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-6">
@@ -224,11 +225,26 @@ export default function VideoFeed() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                     </svg>
                 </div>
-                <h2 className="text-xl font-bold mb-2">Nenhum vídeo ainda</h2>
-                <p className="text-white/40 text-sm mb-8">Seja o primeiro a carregar um vídeo de produto e comece a vender!</p>
-                <Link href="/merchant/add-product" className="bg-primary px-8 py-3 rounded-xl font-bold shadow-lg shadow-primary/20 transition-all active:scale-95">
-                    Carregar Vídeo
-                </Link>
+                {isMerchant ? (
+                    <>
+                        <h2 className="text-xl font-bold mb-2">Nenhum vídeo ainda</h2>
+                        <p className="text-white/40 text-sm mb-8">Seja o primeiro a carregar um vídeo de produto e comece a vender!</p>
+                        <Link href="/merchant/add-product" className="bg-primary px-8 py-3 rounded-xl font-bold shadow-lg shadow-primary/20 transition-all active:scale-95">
+                            Carregar Vídeo
+                        </Link>
+                    </>
+                ) : (
+                    <>
+                        <h2 className="text-xl font-bold mb-2">Sem promoções no momento</h2>
+                        <p className="text-white/40 text-sm mb-8">Volte em breve para descobrir produtos incríveis em oferta.</p>
+                        <button
+                            onClick={() => { pageRef.current = 0; loadVideos(0); }}
+                            className="bg-white/10 hover:bg-white/15 px-8 py-3 rounded-xl font-bold transition-all active:scale-95"
+                        >
+                            Atualizar
+                        </button>
+                    </>
+                )}
             </div>
         );
     }
