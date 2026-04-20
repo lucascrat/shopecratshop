@@ -30,7 +30,7 @@ async function uploadFileViaApi(file: File, folder: string): Promise<string> {
 }
 
 export async function createProductWithVideo(payload: CreateProductPayload) {
-    const { name, description, price, category, stock, videoFile, imageFiles, storeId } = payload;
+    const { name, description, price, oldPrice, category, stock, videoFile, imageFiles, storeId } = payload;
 
     // 1. Upload video via API
     const videoUrl = await uploadFileViaApi(videoFile, "videos");
@@ -47,6 +47,9 @@ export async function createProductWithVideo(payload: CreateProductPayload) {
     formData.append("name", name);
     formData.append("description", description);
     formData.append("price", price);
+    if (oldPrice && oldPrice.trim() !== "") {
+        formData.append("oldPrice", oldPrice);
+    }
     formData.append("category", category);
     formData.append("stock", stock);
     formData.append("storeId", storeId);

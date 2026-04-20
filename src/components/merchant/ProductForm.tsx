@@ -19,6 +19,7 @@ interface FormErrors {
     name?: string;
     description?: string;
     price?: string;
+    oldPrice?: string;
     stock?: string;
     video?: string;
     images?: string;
@@ -31,6 +32,7 @@ export default function ProductForm() {
         name: "",
         description: "",
         price: "",
+        oldPrice: "",
         category: "Fashion",
         stock: "10",
     });
@@ -60,6 +62,14 @@ export default function ProductForm() {
         }
         if (price > 999999) {
             newErrors.price = "Preço muito alto";
+        }
+        if (formData.oldPrice.trim() !== "") {
+            const oldPrice = parseFloat(formData.oldPrice);
+            if (isNaN(oldPrice) || oldPrice <= 0) {
+                newErrors.oldPrice = "Preço antigo inválido";
+            } else if (!isNaN(price) && oldPrice <= price) {
+                newErrors.oldPrice = "Deve ser maior que o preço atual";
+            }
         }
         const stock = parseInt(formData.stock);
         if (isNaN(stock) || stock < 0) {
@@ -281,7 +291,23 @@ export default function ProductForm() {
 
                 <div className="grid grid-cols-2 gap-4">
                     <label className="block space-y-2">
-                        <span className="text-xs font-bold text-white/40 uppercase tracking-widest pl-1">Preço (R$)</span>
+                        <span className="text-xs font-bold text-white/40 uppercase tracking-widest pl-1">Preço antigo (R$)</span>
+                        <input
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            placeholder="Opcional"
+                            className={`w-full bg-white/5 border rounded-xl h-12 px-4 focus:ring-2 focus:ring-primary/50 outline-none transition-all ${errors.oldPrice ? 'border-red-500/50' : 'border-white/10'}`}
+                            value={formData.oldPrice}
+                            onChange={(e) => {
+                                setFormData({ ...formData, oldPrice: e.target.value });
+                                if (errors.oldPrice) setErrors(prev => ({ ...prev, oldPrice: undefined }));
+                            }}
+                        />
+                        <FieldError message={errors.oldPrice} />
+                    </label>
+                    <label className="block space-y-2">
+                        <span className="text-xs font-bold text-white/40 uppercase tracking-widest pl-1">Preço promo (R$)</span>
                         <input
                             type="number"
                             step="0.01"
@@ -297,23 +323,39 @@ export default function ProductForm() {
                         />
                         <FieldError message={errors.price} />
                     </label>
-                    <label className="block space-y-2">
-                        <span className="text-xs font-bold text-white/40 uppercase tracking-widest pl-1">Estoque</span>
-                        <input
-                            type="number"
-                            min="0"
-                            placeholder="0"
-                            className={`w-full bg-white/5 border rounded-xl h-12 px-4 focus:ring-2 focus:ring-primary/50 outline-none transition-all ${errors.stock ? 'border-red-500/50' : 'border-white/10'}`}
-                            value={formData.stock}
-                            onChange={(e) => {
-                                setFormData({ ...formData, stock: e.target.value });
-                                if (errors.stock) setErrors(prev => ({ ...prev, stock: undefined }));
-                            }}
-                            required
-                        />
-                        <FieldError message={errors.stock} />
-                    </label>
                 </div>
+
+                {(() => {
+                    const p = parseFloat(formData.price);
+                    const op = parseFloat(formData.oldPrice);
+                    if (!isNaN(p) && !isNaN(op) && op > p && p > 0) {
+                        const pct = Math.round((1 - p / op) * 100);
+                        return (
+                            <div className="flex items-center gap-2 px-1 text-xs">
+                                <span className="bg-primary/20 text-primary font-bold px-2 py-0.5 rounded-md">-{pct}%</span>
+                                <span className="text-white/40">Desconto aplicado na peça</span>
+                            </div>
+                        );
+                    }
+                    return null;
+                })()}
+
+                <label className="block space-y-2">
+                    <span className="text-xs font-bold text-white/40 uppercase tracking-widest pl-1">Estoque</span>
+                    <input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        className={`w-full bg-white/5 border rounded-xl h-12 px-4 focus:ring-2 focus:ring-primary/50 outline-none transition-all ${errors.stock ? 'border-red-500/50' : 'border-white/10'}`}
+                        value={formData.stock}
+                        onChange={(e) => {
+                            setFormData({ ...formData, stock: e.target.value });
+                            if (errors.stock) setErrors(prev => ({ ...prev, stock: undefined }));
+                        }}
+                        required
+                    />
+                    <FieldError message={errors.stock} />
+                </label>
 
                 {/* Category Select */}
                 <label className="block space-y-2">

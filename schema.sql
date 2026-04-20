@@ -330,6 +330,14 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_fee DECIMAL(10,2) DEFAULT 0
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS subtotal DECIMAL(10,2);
 
 -- ================================================
+-- Promotion fields on products (time-bound promo price)
+-- ================================================
+ALTER TABLE products ADD COLUMN IF NOT EXISTS promo_price DECIMAL(10,2);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS promo_start TIMESTAMPTZ;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS promo_end TIMESTAMPTZ;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS promo_label VARCHAR(50);
+
+-- ================================================
 -- DONE
 -- ================================================
 SELECT 'Schema criado com sucesso!' AS resultado;

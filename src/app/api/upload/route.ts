@@ -98,6 +98,8 @@ export async function POST(request: NextRequest) {
             const name = formData.get("name") as string;
             const description = formData.get("description") as string;
             const price = parseFloat(formData.get("price") as string);
+            const oldPriceRaw = formData.get("oldPrice") as string | null;
+            const oldPrice = oldPriceRaw && oldPriceRaw.trim() !== "" ? parseFloat(oldPriceRaw) : null;
             const category = formData.get("category") as string;
             const stock = parseInt(formData.get("stock") as string);
             const storeId = formData.get("storeId") as string;
@@ -105,11 +107,14 @@ export async function POST(request: NextRequest) {
             const imageUrlsJson = formData.get("imageUrls") as string;
             const imageUrls = JSON.parse(imageUrlsJson || "[]");
 
-            console.log("[create-product] Dados:", { name, price, category, stock, storeId, videoUrl, imageUrls });
+            console.log("[create-product] Dados:", { name, price, oldPrice, category, stock, storeId, videoUrl, imageUrls });
 
             // Validate
             if (!name || !description || isNaN(price) || price <= 0) {
                 return NextResponse.json({ error: "Dados inválidos" }, { status: 400 });
+            }
+            if (oldPrice !== null && (isNaN(oldPrice) || oldPrice <= price)) {
+                return NextResponse.json({ error: "Preço antigo deve ser maior que o preço promocional" }, { status: 400 });
             }
 
             // Verify store ownership
@@ -127,9 +132,9 @@ export async function POST(request: NextRequest) {
             // Create product
             console.log("[create-product] Inserindo produto...");
             const { rows: productRows } = await query(
-                `INSERT INTO products (store_id, name, description, price, category, stock, images)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-                [storeId, name, description, price, category, stock, JSON.stringify(imageUrls)]
+                `INSERT INTO products (store_id, name, description, price, old_price, category, stock, images)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+                [storeId, name, description, price, oldPrice, category, stock, JSON.stringify(imageUrls)]
             );
 
             const product = productRows[0];

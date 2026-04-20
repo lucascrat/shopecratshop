@@ -156,6 +156,7 @@ export interface CreateProductPayload {
     name: string;
     description: string;
     price: string;
+    oldPrice?: string;
     category: string;
     stock: string;
     videoFile: File;
